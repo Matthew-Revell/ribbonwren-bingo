@@ -6,7 +6,7 @@ Recorded against the MVP on this branch. Automated commands were run in this env
 
 | Check | Result |
 | --- | --- |
-| `npm test` (Vitest: shuffle, cards, limits, unlock, source rules, PDF) | 44 passed |
+| `npm test` (Vitest: shuffle, cards, limits, unlock, source rules, PDF) | 49 passed |
 | `npm run test:e2e` | 16 passed, 2 skipped |
 | `npm run build` | `dist/` produced |
 

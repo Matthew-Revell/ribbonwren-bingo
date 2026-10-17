@@ -15,7 +15,7 @@ import { KEY_STATUS, PUBLIC_KEY } from "./unlock/public-key.js";
 import { importPrivateKey, signPayload, buildPayload } from "./unlock/sign.js";
 import { loadRevokedIds, verifyCode } from "./unlock/verify.js";
 import { ledgerCsv, parseLedger } from "./unlock/ledger.js";
-import { loadUnlock, saveUnlock } from "./unlock/storage.js";
+import { clearLegacyUnlock, clearUnlock, loadLegacyUnlock, loadUnlock, saveUnlock } from "./unlock/storage.js";
 import { loadAssets, exportGame } from "./ui/export-game.js";
 import { assessForm } from "./ui/form.js";
 import { renderPreview } from "./ui/preview.js";
@@ -205,7 +205,7 @@ function stringsForDelivery(input, result) {
   const labels = input.mode === "pictures"
     ? pictures.map((picture) => picture.caption || picture.name || "Picture")
     : result.parsed.items;
-  return [input.title, input.freeSpaceText, input.buyerFirstName || $("buyer-name").value, ...labels];
+  return [input.title, input.freeSpaceText, input.seed, input.buyerFirstName || $("buyer-name").value, ...labels];
 }
 
 async function makeFile(input, result, extra) {
@@ -414,31 +414,39 @@ async function boot() {
   $("key-note").textContent = KEY_NOTE;
   $("license-note").textContent = LICENSE_NOTE;
   $("ledger-note").textContent = LEDGER_NOTE;
-  const stored = loadUnlock();
-  if (stored?.code) {
+  async function openOwner(code, { fromLegacy = false, quiet = false } = {}) {
     const revokedIds = await loadRevokedIds(`${import.meta.env.BASE_URL}revoked.json`);
-    const result = await verifyCode(stored.code, { publicKey: PUBLIC_KEY, revokedIds });
-    if (result.ok && result.payload.tier === "owner") {
-      unlock = result;
-      $("owner-gate").hidden = true;
-      $("owner-app").hidden = false;
-    }
-  }
-  $("owner-unlock").addEventListener("click", async () => {
-    const revokedIds = await loadRevokedIds(`${import.meta.env.BASE_URL}revoked.json`);
-    const result = await verifyCode($("owner-code").value.trim(), { publicKey: PUBLIC_KEY, revokedIds });
+    const result = await verifyCode(String(code || "").trim(), { publicKey: PUBLIC_KEY, revokedIds });
     if (!result.ok || result.payload.tier !== "owner") {
-      const reason = result.ok ? null : (result.reason === "not-configured" ? "garbage" : result.reason);
-      $("owner-msg").textContent = result.ok ? "That code is not an owner code." : unlockError(reason);
-      return;
+      if (!quiet) {
+        const reason = result.ok ? null : (result.reason === "not-configured" ? "garbage" : result.reason);
+        $("owner-msg").textContent = result.ok ? "That code is not an owner code." : unlockError(reason);
+      }
+      return false;
     }
     unlock = result;
-    saveUnlock({ code: $("owner-code").value.trim() });
+    saveUnlock({ code: String(code).trim() }, "owner");
+    if (fromLegacy) clearLegacyUnlock();
     $("owner-gate").hidden = true;
     $("owner-app").hidden = false;
     if (!$("seed").value) $("seed").value = $("order-number").value.trim();
     updatePreview();
-  });
+    return true;
+  }
+  const stored = loadUnlock("owner");
+  const legacy = stored?.code ? null : loadLegacyUnlock();
+  if (stored?.code) {
+    const ok = await openOwner(stored.code, { quiet: true });
+    if (!ok) clearUnlock("owner");
+  } else if (legacy?.code) {
+    await openOwner(legacy.code, { fromLegacy: true, quiet: true });
+  }
+  const fromHash = new URLSearchParams(location.hash.replace(/^#/, "")).get("unlock");
+  if (fromHash && !unlock) {
+    const ok = await openOwner(fromHash);
+    if (ok) history.replaceState(null, "", location.pathname + location.search);
+  }
+  $("owner-unlock").addEventListener("click", () => openOwner($("owner-code").value));
   $("order-number").addEventListener("input", () => {
     if (!seedDirty) $("seed").value = $("order-number").value.trim();
     updatePreview();

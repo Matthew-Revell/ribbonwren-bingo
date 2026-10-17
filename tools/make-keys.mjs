@@ -20,6 +20,7 @@
 import { writeFileSync } from "node:fs";
 import { resolve, relative, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { ownerCodeFromPrivateJwk } from "./make-owner-code.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const args = process.argv.slice(2).filter((arg) => arg !== "--force");
@@ -57,3 +58,12 @@ console.log("");
 console.log("Public key. Put this object in src/unlock/public-key.js");
 console.log('and set KEY_STATUS to "production":');
 console.log(JSON.stringify(publicJwk, null, 2));
+
+const owner = await ownerCodeFromPrivateJwk(privateJwk, { name: "Owner", order: "owner" });
+console.log("");
+console.log(`Owner code ${owner.payload.id}. Paste it into owner.html before you deploy.`);
+console.log("The page's code maker only makes Pro codes, and it stays locked until this code is accepted.");
+console.log("Make another any time with:");
+console.log(`  node tools/make-owner-code.mjs ${destination}`);
+console.log(owner.link);
+console.log(owner.code);

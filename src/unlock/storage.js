@@ -1,4 +1,6 @@
-export const UNLOCK_KEY = "rwb-unlock";
+export const PRO_UNLOCK_KEY = "rwb-unlock-pro";
+export const OWNER_UNLOCK_KEY = "rwb-unlock-owner";
+export const LEGACY_UNLOCK_KEY = "rwb-unlock";
 export const DRAFT_KEY = "rwb-draft";
 
 function read(key) {
@@ -10,16 +12,34 @@ function read(key) {
   }
 }
 
-export function saveUnlock(record) {
-  localStorage.setItem(UNLOCK_KEY, JSON.stringify(record));
+export function unlockStorageKey(tier) {
+  return tier === "owner" ? OWNER_UNLOCK_KEY : PRO_UNLOCK_KEY;
 }
 
-export function loadUnlock() {
-  return read(UNLOCK_KEY);
+export function saveUnlock(record, tier) {
+  localStorage.setItem(unlockStorageKey(tier), JSON.stringify({ code: record?.code || "" }));
 }
 
-export function clearUnlock() {
-  localStorage.removeItem(UNLOCK_KEY);
+export function loadUnlock(tier) {
+  return read(unlockStorageKey(tier));
+}
+
+export function loadLegacyUnlock() {
+  return read(LEGACY_UNLOCK_KEY);
+}
+
+export function clearLegacyUnlock() {
+  localStorage.removeItem(LEGACY_UNLOCK_KEY);
+}
+
+export function clearUnlock(tier) {
+  if (tier) {
+    localStorage.removeItem(unlockStorageKey(tier));
+    return;
+  }
+  localStorage.removeItem(PRO_UNLOCK_KEY);
+  localStorage.removeItem(OWNER_UNLOCK_KEY);
+  localStorage.removeItem(LEGACY_UNLOCK_KEY);
 }
 
 export function saveDraft(draft) {
@@ -31,6 +51,6 @@ export function loadDraft() {
 }
 
 export function clearAppData() {
-  localStorage.removeItem(UNLOCK_KEY);
+  clearUnlock();
   localStorage.removeItem(DRAFT_KEY);
 }

@@ -9,7 +9,7 @@ import { prepareImageFile, MAX_PICTURES } from "./pdf/images.js";
 import { KEY_STATUS, PUBLIC_KEY } from "./unlock/public-key.js";
 import { loadRevokedIds, verifyCode } from "./unlock/verify.js";
 import { verifyLemonSqueezyLicense } from "./unlock/lemonsqueezy.js";
-import { clearAppData, loadDraft, loadUnlock, saveDraft, saveUnlock, clearUnlock } from "./unlock/storage.js";
+import { clearAppData, clearLegacyUnlock, clearUnlock, loadDraft, loadLegacyUnlock, loadUnlock, saveDraft, saveUnlock } from "./unlock/storage.js";
 import { assessForm } from "./ui/form.js";
 import { renderPreview } from "./ui/preview.js";
 import { downloadBytes, downloadText } from "./ui/download.js";
@@ -318,7 +318,7 @@ async function acceptCode(code) {
   $("unlock-msg").textContent = result.ok ? "" : unlockError(result.reason);
   if (!result.ok) return false;
   unlock = { code, payload: result.payload };
-  saveUnlock({ code });
+  saveUnlock({ code }, result.payload.tier === "owner" ? "owner" : "pro");
   renderUnlock();
   updatePreview();
   return true;
@@ -332,8 +332,12 @@ async function bootUnlock() {
     if (ok) history.replaceState(null, "", location.pathname + location.search);
   }
   if (!unlock) {
-    const stored = loadUnlock();
-    if (stored?.code) await acceptCode(stored.code);
+    const legacy = loadLegacyUnlock();
+    const stored = loadUnlock("pro") || legacy || loadUnlock("owner");
+    if (stored?.code) {
+      const ok = await acceptCode(stored.code);
+      if (ok && stored === legacy) clearLegacyUnlock();
+    }
   }
 }
 
@@ -508,7 +512,8 @@ function bind() {
   $("picture-input").addEventListener("change", onPictures);
   $("unlock-button").addEventListener("click", () => acceptCode($("unlock-code").value.trim()));
   $("remove-unlock").addEventListener("click", () => {
-    clearUnlock();
+    clearUnlock(unlock?.payload?.tier === "owner" ? "owner" : "pro");
+    clearLegacyUnlock();
     unlock = null;
     renderUnlock();
     updatePreview();

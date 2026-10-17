@@ -46,7 +46,8 @@ export async function verifySignedCode(code, options = {}) {
   if (!signatureOk) return fail("signature");
   if (payload.v !== 1) return fail("version");
   if (payload.tier !== "pro" && payload.tier !== "owner") return fail("tier");
-  if (payload.id && revokedIds.includes(payload.id)) return fail("revoked");
+  if (typeof payload.id !== "string" || payload.id.trim() === "") return fail("garbage");
+  if (revokedIds.includes(payload.id)) return fail("revoked");
   return { ok: true, payload, kind: "signed" };
 }
 

@@ -185,6 +185,31 @@ describe("pdf cards", () => {
     expect(inspect(again.bytes).text).toBe(ownerLook.text);
   });
 
+  it("blocks a bare domain in the free-space text or the seed", async () => {
+    const list = ["cocoa", "paper crane", "wool blanket", "river stone", "library card", "sunday walk", "honey toast", "ceramic mug"];
+    const freeSpace = await renderWords({
+      items: list,
+      count: 1,
+      grid: 3,
+      freeSpace: true,
+      freeSpaceText: "example.com",
+      tier: "owner",
+      audience: "etsy",
+    });
+    expect(freeSpace.ok).toBe(false);
+    expect(freeSpace.hits.some((hit) => hit.issues.includes("domain"))).toBe(true);
+    const seed = await renderWords({
+      items: list,
+      count: 1,
+      grid: 3,
+      freeSpace: true,
+      seed: "shop.example.com",
+      tier: "owner",
+      audience: "etsy",
+    });
+    expect(seed.ok).toBe(false);
+  });
+
   it("flows 300 call-sheet items onto more than one page", async () => {
     const list = words(300, "item");
     const rendered = await renderWords({ items: list, count: 1, includeCallSheet: true });

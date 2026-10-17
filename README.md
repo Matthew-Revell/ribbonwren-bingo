@@ -48,17 +48,24 @@ The repository includes a **TEST/DEV** key pair so the tests can run. The public
 
 Before any real sale:
 
-1. Run `node tools/make-keys.mjs ~/ribbonwren-unlock-PRIVATE.jwk`. The tool will not write a private key inside this repo.
+1. Run `node tools/make-keys.mjs ~/ribbonwren-unlock-PRIVATE.jwk`. The tool will not write a private key inside this repo. It prints an **owner code** along with the public key. Keep that code with the private key.
 2. Keep that file, and one backup you control. Anyone with it can mint codes.
 3. Replace the public key in `src/unlock/public-key.js` with the key the tool prints, and set `KEY_STATUS` to `"production"`.
+4. Open `owner.html` and paste the owner code (or open the `owner.html#unlock=` link the tool prints). The code maker on that page only makes Pro codes for website sales, and it stays behind the owner gate, so this command is how you get in:
+
+```bash
+node tools/make-owner-code.mjs ~/ribbonwren-unlock-PRIVATE.jwk "Matthew" "owner"
+```
+
+An owner unlock and a Pro unlock are stored in separate browser slots, so accepting one does not erase the other.
 
 Revoke a code by adding its id to `public/revoked.json`.
 
 ## Deploy
 
-Merging to `main` is the go-live. GitHub Actions runs the tests on pull requests. The Pages workflow (`.github/workflows/deploy.yml`) builds `dist/` and deploys on a push to `main`.
+Merging to `main` is the go-live. GitHub Actions runs the tests on pull requests and on `main`. Pages deploy runs only after that Tests workflow succeeds on `main`. A manual deploy re-runs the tests first. Either way, the deploy stops if `KEY_STATUS` is not `"production"` or the public key is still the committed test key.
 
-In the repository settings, set **Pages → Build and deployment → Source** to **GitHub Actions**. Until that is set, the workflow has nowhere to publish.
+In the repository settings, set **Pages → Build and deployment → Source** to **GitHub Actions**. Until that is set, the workflow has nowhere to publish. The deploy file takes effect once it is on `main`.
 
 ## What is not in this version
 

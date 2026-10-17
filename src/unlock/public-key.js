@@ -7,7 +7,10 @@
  *
  * Before any real sale, Matthew runs tools/make-keys.mjs, stores the private
  * key outside the repo (and keeps a backup), replaces PUBLIC_KEY below, and
- * sets KEY_STATUS to "production". Do not commit the production private key.
+ * sets KEY_STATUS to "production". The tool also prints an owner code. Another
+ * one can be made later with tools/make-owner-code.mjs. Do not commit the
+ * production private key. Deploy refuses to publish while this file is still
+ * the test key.
  */
 export const KEY_STATUS = "test-dev";
 

@@ -4,9 +4,13 @@
  * Buyer word lists are checked with the same rules before export so a pasted
  * URL cannot ride along in the file.
  */
+// A hostname with no scheme, such as example.com or shop.example.co.uk.
+const BARE_DOMAIN = /\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:com|net|org|io|co|uk|ca|us|shop|store|app|dev|info|biz|me|etsy)\b/i;
+
 const RULES = [
   { code: "url", re: /https?:\/\//i },
   { code: "www", re: /\bwww\./i },
+  { code: "domain", re: BARE_DOMAIN },
   { code: "pro", re: /\bpro\b/i },
   { code: "upgrade", re: /upgrade/i },
   { code: "unlock", re: /unlock/i },
@@ -37,6 +41,7 @@ export function scrubMeta(text) {
   return String(text ?? "")
     .replace(/https?:\/\/\S+/gi, "")
     .replace(/\bwww\.\S+/gi, "")
+    .replace(new RegExp(BARE_DOMAIN.source, "gi"), "")
     .replace(/\s+/g, " ")
     .trim();
 }

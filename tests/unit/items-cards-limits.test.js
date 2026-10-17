@@ -5,7 +5,9 @@ import { validateCardCount } from "../../src/core/limits.js";
 import { licenseFilename, ownerCardFilename, sanitizeFilename } from "../../src/core/filename.js";
 import { fitAll, fitText } from "../../src/pdf/fit-text.js";
 import { CHECK_INCH, MARGIN, cardSlots, contentRect, pageDimensions, paginateCallSheet, rectsOverlap } from "../../src/pdf/layout.js";
-import { deliveryIssuesIn } from "../../src/pdf/etsy-safe.js";
+import { deliveryIssuesIn, findDeliveryIssues } from "../../src/pdf/etsy-safe.js";
+import { recipeError } from "../../src/core/recipe.js";
+import { ALGORITHM } from "../../src/core/rng.js";
 import { buildDeliveryFiles, splitRanges } from "../../src/pdf/split.js";
 import { purchaseHref, siteConfig } from "../../src/config.js";
 
@@ -246,7 +248,20 @@ describe("delivery rules", () => {
     expect(siteConfig.externalCodeType).toBe(null);
     expect(purchaseHref()).toBe(null);
     expect(deliveryIssuesIn(["https://example.com", "Upgrade to Pro", "scan the QR"]).length).toBe(3);
-    expect(deliveryIssuesIn(["cocoa", "paper crane"])).toEqual([]);
+    expect(findDeliveryIssues("example.com")).toContain("domain");
+    expect(findDeliveryIssues("see shop.example.co.uk/cards")).toContain("domain");
+    expect(deliveryIssuesIn(["cocoa", "paper crane", "Ribbonwren Paper Co."])).toEqual([]);
+  });
+
+  it("rejects a saved game whose fields cannot be reprinted", () => {
+    expect(recipeError({ algorithm: ALGORITHM, items: ["cocoa"], grid: 5, cardCount: 8, pageSize: "letter" })).toBe("");
+    expect(recipeError({ algorithm: ALGORITHM, items: ["cocoa"], grid: 7 })).toMatch(/grid/);
+    expect(recipeError({ algorithm: ALGORITHM, items: ["cocoa"], cardCount: 900 })).toMatch(/card count/);
+    expect(recipeError({ algorithm: ALGORITHM, items: ["cocoa"], pageSize: "tabloid" })).toMatch(/page size/);
+    expect(recipeError({ algorithm: ALGORITHM, items: ["cocoa"], cardsPerPage: 4 })).toMatch(/cards per page/);
+    expect(recipeError({ algorithm: ALGORITHM, items: ["cocoa"], theme: "winter" })).toMatch(/theme/);
+    expect(recipeError({ algorithm: ALGORITHM, items: [1, 2] })).toMatch(/word list/);
+    expect(recipeError(["cocoa"])).toMatch(/isn't a recipe/);
   });
 
   it("offers a split when one file is past the soft limit", async () => {

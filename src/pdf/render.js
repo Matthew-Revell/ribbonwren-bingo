@@ -166,6 +166,7 @@ export async function renderPdf(options) {
     cardsPerPage = 1,
     tier = "free",
     seed = "",
+    freeSpaceText = "",
     date = "",
     showBingoLetters = false,
     showAccent = true,
@@ -190,7 +191,13 @@ export async function renderPdf(options) {
   const labels = safeItems.map((item) => (typeof item === "string" ? item : item.label));
   const pictureById = new Map(safePictures.map((picture) => [picture.id, picture]));
   if (audience === "etsy") {
-    const hits = deliveryIssuesIn([title, ...labels, partNote]);
+    const freeTexts = [];
+    for (const card of cards || []) {
+      for (const cell of card?.cells || []) {
+        if (cell.free && cell.text) freeTexts.push(cell.text);
+      }
+    }
+    const hits = deliveryIssuesIn([title, freeSpaceText, seed, ...freeTexts, ...labels, partNote]);
     if (hits.length) return { ok: false, error: "etsy-text", hits };
   }
 

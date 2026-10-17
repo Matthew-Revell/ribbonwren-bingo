@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { bytesToB64url, b64urlToBytes } from "../../src/unlock/codec.js";
@@ -5,7 +6,9 @@ import { buildPayload, canonicalPayload, importPrivateKey, signPayload } from ".
 import { PUBLIC_KEY } from "../../src/unlock/public-key.js";
 import { verifyCode, verifySignedCode } from "../../src/unlock/verify.js";
 import { verifyLemonSqueezyLicense } from "../../src/unlock/lemonsqueezy.js";
-import { ledgerCsv } from "../../src/unlock/ledger.js";
+import { ledgerCsv, parseLedger } from "../../src/unlock/ledger.js";
+import { loadUnlock, saveUnlock } from "../../src/unlock/storage.js";
+import { TEST_KEY_X, deploymentBlockReason } from "../../tools/assert-production-key.mjs";
 
 const privateJwk = JSON.parse(
   readFileSync(new URL("../fixtures/TEST_DEV_PRIVATE_KEY.json", import.meta.url), "utf8"),
@@ -49,6 +52,10 @@ describe("verify", () => {
     const futurePayload = { ...future.payload, v: 2 };
     const futureCode = await signPayload(await importPrivateKey(privateJwk), futurePayload);
     expect((await verifySignedCode(futureCode, { publicKey: PUBLIC_KEY })).reason).toBe("version");
+    const missingId = await signPayload(await importPrivateKey(privateJwk), { ...payload, id: 12 });
+    expect((await verifySignedCode(missingId, { publicKey: PUBLIC_KEY })).reason).toBe("garbage");
+    const blankId = await signPayload(await importPrivateKey(privateJwk), { ...payload, id: "  " });
+    expect((await verifySignedCode(blankId, { publicKey: PUBLIC_KEY })).reason).toBe("garbage");
     expect((await verifySignedCode(code, { publicKey: PUBLIC_KEY, revokedIds: ["RW-7K3D9Q"] })).reason).toBe("revoked");
 
     for (const bad of ["", "   ", "hello", "@@@.@@@", "a.b.c", "..."]) {
@@ -77,7 +84,49 @@ describe("verify", () => {
   it("writes a ledger without an email column", () => {
     const csv = ledgerCsv([{ date: "2026-11-02", id: "RW-7K3D9Q", order: "3456789012", name: "Sarah" }]);
     expect(csv.startsWith("date,code_id,order_number,first_name\n")).toBe(true);
+    expect(csv).toContain('"2026-11-02","RW-7K3D9Q","3456789012","Sarah"');
     expect(csv.toLowerCase()).not.toContain("email");
+    const risky = ledgerCsv([{ date: "2026-11-02", id: "@RW", order: "=1+1", name: "+Sarah" }]);
+    expect(risky).toContain("\"'=1+1\"");
+    expect(risky).toContain("\"'+Sarah\"");
+    expect(risky).toContain("\"'@RW\"");
+    expect(parseLedger(risky)[0]).toMatchObject({ id: "@RW", order: "=1+1", name: "+Sarah" });
+  });
+
+  it("keeps owner and pro unlocks in separate slots", () => {
+    const memory = new Map();
+    globalThis.localStorage = {
+      getItem: (key) => (memory.has(key) ? memory.get(key) : null),
+      setItem: (key, value) => memory.set(key, String(value)),
+      removeItem: (key) => memory.delete(key),
+    };
+    saveUnlock({ code: "pro-code" }, "pro");
+    saveUnlock({ code: "owner-code" }, "owner");
+    expect(loadUnlock("pro").code).toBe("pro-code");
+    expect(loadUnlock("owner").code).toBe("owner-code");
+    expect(memory.has("rwb-unlock")).toBe(false);
+  });
+
+  it("mints an owner code from the private key file", async () => {
+    const out = execFileSync("node", [
+      "tools/make-owner-code.mjs",
+      "tests/fixtures/TEST_DEV_PRIVATE_KEY.json",
+      "Matthew",
+      "owner",
+    ], { encoding: "utf8" });
+    const code = out.trim().split("\n").pop();
+    const result = await verifySignedCode(code, { publicKey: PUBLIC_KEY });
+    expect(result.ok).toBe(true);
+    expect(result.payload.tier).toBe("owner");
+    expect(result.payload.n).toBe("Matthew");
+    expect(result.payload.o).toBe("owner");
+  });
+
+  it("refuses to deploy the test key", () => {
+    expect(deploymentBlockReason("test-dev", { x: "other" })).toMatch(/production/);
+    expect(deploymentBlockReason("production", { x: TEST_KEY_X })).toMatch(/TEST\/DEV/);
+    expect(deploymentBlockReason("production", { x: "a-real-key", d: "secret" })).toMatch(/private/);
+    expect(deploymentBlockReason("production", { x: "a-real-key" })).toBe("");
   });
 
   it("publishes a test public key with no private material", () => {
