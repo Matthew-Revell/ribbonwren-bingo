@@ -16,7 +16,7 @@ import {
   pageDimensions,
   starPositions,
 } from "./layout.js";
-import { scrubMeta, deliveryIssuesIn } from "./etsy-safe.js";
+import { scrubMeta, deliveryIssuesIn, partitionDeliveryHits } from "./etsy-safe.js";
 import { resolveTheme } from "../themes/index.js";
 
 const MONTHS = [
@@ -150,10 +150,16 @@ function cardId(seed, number, total) {
   return `Game ${seed} · Card ${String(number).padStart(width, "0")} of ${total}`;
 }
 
+function cardsLabel(total) {
+  const count = Number(total) || 0;
+  return `${count} ${count === 1 ? "card" : "cards"}`;
+}
+
 /**
  * Build the card PDF plus the call sheet.
- * audience "etsy" refuses URLs, Pro wording, and the free footer, including
- * in the document info dictionary.
+ * audience "etsy" refuses web addresses, emails, and links, including in
+ * the document info dictionary. Words such as Pro can be printed only when
+ * allowWording is set. The free footer stays off for that audience.
  */
 export async function renderPdf(options) {
   const {
@@ -183,6 +189,7 @@ export async function renderPdf(options) {
     cardTotal = null,
     includeCallSheet = true,
     partNote = "",
+    allowWording = false,
     onProgress = null,
   } = options;
 
@@ -191,14 +198,16 @@ export async function renderPdf(options) {
   const labels = safeItems.map((item) => (typeof item === "string" ? item : item.label));
   const pictureById = new Map(safePictures.map((picture) => [picture.id, picture]));
   if (audience === "etsy") {
-    const freeTexts = [];
+    const cellTexts = [];
     for (const card of cards || []) {
       for (const cell of card?.cells || []) {
-        if (cell.free && cell.text) freeTexts.push(cell.text);
+        if (cell?.text) cellTexts.push(cell.text);
       }
     }
-    const hits = deliveryIssuesIn([title, freeSpaceText, seed, ...freeTexts, ...labels, partNote]);
-    if (hits.length) return { ok: false, error: "etsy-text", hits };
+    const hits = deliveryIssuesIn([title, freeSpaceText, seed, ...cellTexts, ...labels, partNote]);
+    const parts = partitionDeliveryHits(hits);
+    if (parts.hard.length) return { ok: false, error: "etsy-text", hits: parts.hard };
+    if (parts.soft.length && !allowWording) return { ok: false, error: "etsy-wording", hits: parts.soft };
   }
 
   const theme = resolveTheme(themeId, inkSaver);
@@ -384,7 +393,7 @@ export async function renderPdf(options) {
       pageHeight: dim.height,
       measure: (text, size) => fonts.regular.widthOfTextAtSize(text, size),
     });
-    const header = `Seed ${seed}  ·  ${fullTotal} cards  ·  ${gridN}×${gridN}  ·  ${formatLongDate(date)}`;
+    const header = `Seed ${seed}  ·  ${cardsLabel(fullTotal)}  ·  ${gridN}×${gridN}  ·  ${formatLongDate(date)}`;
     for (let index = 0; index < call.pages.length; index++) {
       const rows = call.pages[index];
       const page = pdf.addPage([dim.width, dim.height]);

@@ -107,6 +107,7 @@ async function renderWords(options) {
     cardTotal: options.cardTotal,
     includeCallSheet: options.includeCallSheet !== false,
     partNote: options.partNote || "",
+    allowWording: Boolean(options.allowWording),
   });
 }
 
@@ -133,8 +134,10 @@ describe("pdf cards", () => {
     expect(Buffer.from(letter.bytes).includes(Buffer.from("/PrintScaling /None"))).toBe(true);
 
     const a4 = await renderWords({ items: list, count: 1, pageSize: "a4", cardsPerPage: 1 });
-    const a4info = inspect(a4.bytes).info;
-    expect(a4info).toMatch(/595\.28 x 841\.89/);
+    const a4look = inspect(a4.bytes);
+    expect(a4look.info).toMatch(/595\.28 x 841\.89/);
+    expect(a4look.text).toContain("1 card");
+    expect(a4look.text).not.toContain("1 cards");
   });
 
   it("lays out two cards on a landscape page", async () => {
@@ -208,6 +211,56 @@ describe("pdf cards", () => {
       audience: "etsy",
     });
     expect(seed.ok).toBe(false);
+    const printed = await renderWords({
+      items: list,
+      count: 1,
+      grid: 3,
+      freeSpace: true,
+      seed: "www.example.com/pro",
+      tier: "owner",
+      audience: "etsy",
+      allowWording: true,
+    });
+    expect(printed.ok).toBe(false);
+    expect(printed.error).toBe("etsy-text");
+  });
+
+  it("blocks a sales-pitch word unless the owner overrides it", async () => {
+    const list = ["cocoa", "paper crane", "wool blanket", "river stone", "library card", "sunday walk", "honey toast", "ceramic mug"];
+    const blocked = await renderWords({
+      items: list,
+      count: 1,
+      grid: 3,
+      freeSpace: true,
+      title: "Pro tip",
+      tier: "owner",
+      audience: "etsy",
+    });
+    expect(blocked.ok).toBe(false);
+    expect(blocked.error).toBe("etsy-wording");
+    const allowed = await renderWords({
+      items: list,
+      count: 1,
+      grid: 3,
+      freeSpace: true,
+      title: "Pro tip",
+      tier: "owner",
+      audience: "etsy",
+      allowWording: true,
+    });
+    expect(allowed.ok).toBe(true);
+    expect(inspect(allowed.bytes).text).toContain("Pro tip");
+    const linked = await renderWords({
+      items: ["hello@example.com", ...list.slice(1)],
+      count: 1,
+      grid: 3,
+      freeSpace: true,
+      tier: "owner",
+      audience: "etsy",
+      allowWording: true,
+    });
+    expect(linked.ok).toBe(false);
+    expect(linked.error).toBe("etsy-text");
   });
 
   it("flows 300 call-sheet items onto more than one page", async () => {

@@ -53,7 +53,8 @@
             <div class="field">
               <label for="words">Words</label>
               <textarea id="words"></textarea>
-              <p class="field-msg">One item per line. A single line of items separated by commas or semicolons is split for you.</p>
+              <p class="field-msg">One item per line, or commas and semicolons when most lines use them. "milk, cookies" in quotes stays one item.</p>
+              <p id="item-count" class="field-msg"></p>
               <p id="words-msg" class="field-msg error"></p>
               <button type="button" class="secondary" id="remove-duplicates" hidden>Remove duplicates</button>
             </div>
@@ -121,6 +122,10 @@
               </div>
             </div>
             <div id="form-messages" class="messages" aria-live="polite"></div>
+            <p id="wording-warning" class="warning" hidden></p>
+            <div id="wording-row" hidden>
+              <label class="choice" for="wording-override"><input id="wording-override" type="checkbox"> Print these words anyway</label>
+            </div>
             <div id="size-warning" class="note" hidden></div>
             <div class="actions">
               <button type="submit" id="make-pdf">Make PDF</button>

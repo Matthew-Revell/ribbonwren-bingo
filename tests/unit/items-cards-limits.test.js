@@ -3,6 +3,7 @@ import { buildCards } from "../../src/core/cards.js";
 import { neededCount, parseItems, validateSupply } from "../../src/core/items.js";
 import { validateCardCount } from "../../src/core/limits.js";
 import { licenseFilename, ownerCardFilename, sanitizeFilename } from "../../src/core/filename.js";
+import { fitEdge, MAX_BYTES, MAX_EDGE, MAX_PICTURES, prepareImageFile } from "../../src/pdf/images.js";
 import { fitAll, fitText } from "../../src/pdf/fit-text.js";
 import { CHECK_INCH, MARGIN, cardSlots, contentRect, pageDimensions, paginateCallSheet, rectsOverlap } from "../../src/pdf/layout.js";
 import { deliveryIssuesIn, findDeliveryIssues } from "../../src/pdf/etsy-safe.js";
@@ -39,10 +40,33 @@ describe("parseItems", () => {
     expect(parsed.items).toEqual(["<script>alert(1)</script>", "<b>hi</b>"]);
   });
 
-  it("splits commas and semicolons only when there is no line break", () => {
+  it("splits commas and semicolons when most lines use them", () => {
     expect(parseItems("a, b; c", { mode: "auto" }).items).toEqual(["a", "b", "c"]);
     expect(parseItems("milk, cookies\ncocoa", { mode: "auto" }).items).toEqual(["milk, cookies", "cocoa"]);
     expect(parseItems("a, b", { mode: "lines" }).items).toEqual(["a, b"]);
+  });
+
+  it("still splits a comma list that ends with a newline", () => {
+    const words = Array.from({ length: 30 }, (_, index) => `word${index}`);
+    const parsed = parseItems(`${words.join(", ")}\n`, { mode: "auto" });
+    expect(parsed.items).toEqual(words);
+  });
+
+  it("splits every line when each line is comma-separated", () => {
+    const lines = Array.from({ length: 12 }, (_, index) => `a${index}, b${index}, c${index}`);
+    const parsed = parseItems(lines.join("\n"), { mode: "auto" });
+    expect(parsed.items).toHaveLength(36);
+    expect(parsed.items).toContain("a7");
+    expect(parsed.items).toContain("b7");
+    expect(parsed.items).toContain("c7");
+    expect(parsed.items).not.toContain("a7, b7, c7");
+  });
+
+  it("keeps a quoted comma inside one item and drops the quotes", () => {
+    expect(parseItems('"milk, cookies"', { mode: "auto" }).items).toEqual(["milk, cookies"]);
+    expect(parseItems('tea, "milk, cookies", cocoa', { mode: "auto" }).items).toEqual(["tea", "milk, cookies", "cocoa"]);
+    expect(parseItems('"milk, cookies"\ncocoa', { mode: "auto" }).items).toEqual(["milk, cookies", "cocoa"]);
+    expect(parseItems('"milk, cookies"', { mode: "lines" }).items).toEqual(["milk, cookies"]);
   });
 });
 
@@ -163,6 +187,28 @@ describe("filenames", () => {
     expect(huge.length).toBeLessThanOrEqual(70);
     expect(licenseFilename("3456789012")).toBe("ribbonwren-bingo-license-3456789012.pdf");
   });
+
+  it("folds accents, drops flags and joiners, and collapses stray separators", () => {
+    expect(sanitizeFilename("Café.pdf")).toBe("Cafe.pdf");
+    expect(sanitizeFilename("hello--world__x.pdf")).toBe("hello-world-x.pdf");
+    expect(sanitizeFilename("🇺🇸party.pdf")).toBe("party.pdf");
+    expect(sanitizeFilename("na\u200dme.pdf")).toBe("name.pdf");
+    expect(sanitizeFilename("-_hello_-.pdf")).toBe("hello.pdf");
+    const named = ownerCardFilename({ order: "Café--party", count: 1, pageSize: "letter" });
+    expect(named).toBe("RW-Bingo_Cafe-party_1c_Letter.pdf");
+    expect(named.length).toBeLessThanOrEqual(70);
+    expect(named).toMatch(/^[A-Za-z0-9._-]+$/);
+  });
+});
+
+describe("pictures", () => {
+  it("shrinks a long edge and rejects a photo over 20 MB", async () => {
+    expect(MAX_PICTURES).toBe(75);
+    expect(MAX_EDGE).toBe(600);
+    expect(fitEdge(4000, 2000)).toEqual({ width: 600, height: 300 });
+    const big = await prepareImageFile({ size: MAX_BYTES + 1, name: "huge.png", type: "image/png" });
+    expect(big.error).toBe("too-big");
+  });
 });
 
 describe("fitText", () => {
@@ -249,7 +295,16 @@ describe("delivery rules", () => {
     expect(purchaseHref()).toBe(null);
     expect(deliveryIssuesIn(["https://example.com", "Upgrade to Pro", "scan the QR"]).length).toBe(3);
     expect(findDeliveryIssues("example.com")).toContain("domain");
+    expect(findDeliveryIssues("ribbonwren.com")).toContain("domain");
     expect(findDeliveryIssues("see shop.example.co.uk/cards")).toContain("domain");
+    expect(findDeliveryIssues("bit.ly/abc123")).toContain("domain");
+    expect(findDeliveryIssues("pages.github.io/cards")).toContain("domain");
+    expect(findDeliveryIssues("hello@example.com")).toContain("email");
+    expect(findDeliveryIssues("ｈｔｔｐｓ://example.com")).toContain("url");
+    expect(findDeliveryIssues("www.example.com/pro")).toEqual(expect.arrayContaining(["www", "domain", "pro"]));
+    expect(findDeliveryIssues("Pro tip")).toEqual(["pro"]);
+    expect(findDeliveryIssues("Unlock")).toEqual(["unlock"]);
+    expect(findDeliveryIssues("Upgrade")).toEqual(["upgrade"]);
     expect(deliveryIssuesIn(["cocoa", "paper crane", "Ribbonwren Paper Co."])).toEqual([]);
   });
 

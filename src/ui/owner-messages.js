@@ -15,12 +15,19 @@ export const KEY_NOTE =
 export const LEDGER_NOTE =
   "The ledger lists the date, code id, order number, and first name. It does not store an email. Download it before you close the tab. The license PDF is what you resend if a buyer loses their code.";
 
-export function etsyBlockedMessage(hits) {
-  const sample = hits
+function sampleOf(hits) {
+  return (hits || [])
     .slice(0, 3)
     .map((hit) => hit.text)
     .join("; ");
-  return `This custom-order PDF can't include links, QR codes, or Pro wording. Edit this text first: ${sample}`;
+}
+
+export function etsyBlockedMessage(hits) {
+  return `This custom-order PDF can't include web addresses, email addresses, or links. Edit this text first: ${sampleOf(hits)}`;
+}
+
+export function wordingWarning(hits) {
+  return `These words can read like a sales pitch (Pro, Unlock, Upgrade). Check the box to print them anyway: ${sampleOf(hits)}`;
 }
 
 export function splitTooBigMessage() {

@@ -5,18 +5,36 @@ function extensionOf(name) {
   return match ? match[1] : "";
 }
 
+/** Fold accents, drop flag emoji and joiners, then collapse stray separators. */
+export function foldFilename(input) {
+  let s = String(input ?? "").normalize("NFKC");
+  s = s.replace(/\p{Regional_Indicator}/gu, "");
+  s = s.replace(/[\u200B-\u200D\uFE0E\uFE0F]/g, "");
+  s = s.normalize("NFD").replace(/\p{M}/gu, "");
+  return s;
+}
+
+function tidyPiece(value) {
+  return String(value ?? "")
+    .replace(/[_-]{2,}/g, "-")
+    .replace(/\.{2,}/g, ".")
+    .replace(/^[_\-.]+|[_\-.]+$/g, "");
+}
+
 /** General download names. Strips path characters, emoji, and leading dots. */
 export function sanitizeFilename(input, max = 120) {
-  let s = String(input ?? "");
+  let s = foldFilename(input);
   s = s.replace(FORBIDDEN, "");
   s = s.replace(/\p{Extended_Pictographic}/gu, "");
-  s = s.replace(/^\.+/, "");
   s = s.trim();
-  if (!s) s = "bingo.pdf";
+  const ext = extensionOf(s);
+  let base = ext ? s.slice(0, -ext.length) : s;
+  base = tidyPiece(base);
+  s = base ? `${base}${ext}` : "bingo.pdf";
   if (s.length > max) {
-    const ext = extensionOf(s);
-    const base = ext ? s.slice(0, -ext.length) : s;
-    s = `${base.slice(0, Math.max(1, max - ext.length))}${ext}`;
+    const trimmedExt = extensionOf(s);
+    const trimmedBase = trimmedExt ? s.slice(0, -trimmedExt.length) : s;
+    s = `${trimmedBase.slice(0, Math.max(1, max - trimmedExt.length))}${trimmedExt}`;
   }
   return s;
 }
@@ -26,10 +44,9 @@ function pageToken(pageSize) {
 }
 
 function orderToken(order, room) {
-  let token = String(order ?? "").replace(/[^A-Za-z0-9._-]/g, "");
-  token = token.replace(/^\.+/, "");
+  let token = tidyPiece(foldFilename(order).replace(/[^A-Za-z0-9._-]/g, ""));
   if (!token) token = "order";
-  if (token.length > room) token = token.slice(0, Math.max(1, room));
+  if (token.length > room) token = tidyPiece(token.slice(0, Math.max(1, room))) || "order";
   return token;
 }
 
@@ -69,7 +86,7 @@ export function licenseFilename(order) {
 
 export function publicPdfFilename({ title, count, pageSize }) {
   const page = pageToken(pageSize);
-  const slug = String(title || "bingo")
+  const slug = foldFilename(title || "bingo")
     .trim()
     .replace(/\s+/g, "-")
     .replace(/[^A-Za-z0-9._-]+/g, "");

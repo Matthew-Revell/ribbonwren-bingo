@@ -1,11 +1,13 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { buildCards } from "../../src/core/cards.js";
 import {
   ALGORITHM,
   SEED_ALPHABET,
   cardKey,
   itemListHash,
   makeSeed,
+  normalizeSeed,
   settingsKey,
   shuffle,
 } from "../../src/core/rng.js";
@@ -51,6 +53,23 @@ describe("shuffle", () => {
         expect(shuffle(golden.items, key).slice(0, 8)).toEqual(order);
       });
     }
+  });
+
+  it("treats seeds as the same when only case, dashes, or spaces differ", () => {
+    expect(normalizeSeed("kj4p-92")).toBe("KJ4P92");
+    expect(normalizeSeed("KJ4P-92")).toBe("KJ4P92");
+    expect(normalizeSeed("KJ4P92")).toBe("KJ4P92");
+    expect(normalizeSeed(" kj4p 92 ")).toBe("KJ4P92");
+    const options = { items: golden.items, grid: 3, freeSpace: true, count: 2 };
+    const dashed = buildCards({ ...options, seed: "KJ4P-92" });
+    const lower = buildCards({ ...options, seed: "kj4p-92" });
+    const compact = buildCards({ ...options, seed: "KJ4P92" });
+    expect(dashed.ok).toBe(true);
+    expect(lower.cards.map((card) => card.fingerprint)).toEqual(dashed.cards.map((card) => card.fingerprint));
+    expect(compact.cards.map((card) => card.fingerprint)).toEqual(dashed.cards.map((card) => card.fingerprint));
+    expect(cardKey({ seed: "kj4p-92", settings: "g3f0", listHash: "abc", index: 0 })).toBe(
+      cardKey({ seed: "KJ4P-92", settings: "g3f0", listHash: "abc", index: 0 }),
+    );
   });
 
   it("lands each item in each position within 10 percent over 10,000 shuffles", () => {

@@ -18,22 +18,87 @@ function normalizeRaw(raw) {
     .replace(/\r/g, "\n");
 }
 
+/** True when more than half of the non-empty lines contain a comma or semicolon. */
+export function linesUseDelimiters(text) {
+  const lines = String(text ?? "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (!lines.length) return false;
+  const marked = lines.filter((line) => /[,;]/.test(line)).length;
+  return marked > lines.length / 2;
+}
+
+/**
+ * Split on commas and semicolons that sit outside double quotes.
+ * `"milk, cookies"` stays one item, and the wrapping quotes are removed.
+ * A doubled quote inside a quoted item is a literal quote.
+ */
+export function splitDelimited(text) {
+  const parts = [];
+  let current = "";
+  let quoted = false;
+  const value = String(text ?? "");
+  for (let i = 0; i < value.length; i++) {
+    const ch = value[i];
+    if (quoted) {
+      if (ch === '"') {
+        if (value[i + 1] === '"') {
+          current += '"';
+          i += 1;
+        } else {
+          quoted = false;
+        }
+      } else {
+        current += ch;
+      }
+      continue;
+    }
+    if (ch === '"') {
+      quoted = true;
+      continue;
+    }
+    if (ch === "," || ch === ";") {
+      parts.push(current);
+      current = "";
+      continue;
+    }
+    current += ch;
+  }
+  parts.push(current);
+  return parts;
+}
+
+function stripWrappingQuotes(value) {
+  const trimmed = String(value ?? "").trim();
+  if (trimmed.length >= 2 && trimmed.startsWith('"') && trimmed.endsWith('"')) {
+    return trimmed.slice(1, -1).replace(/""/g, '"').trim();
+  }
+  return trimmed;
+}
+
 /**
  * @param {string} raw
  * @param {{ mode?: "lines" | "auto" }} [options]
- * mode "auto" (owner page): if the paste has no line breaks, commas and
- * semicolons separate items. A list that already has line breaks stays
- * one item per line, so "milk, cookies" can still be a single square.
+ * mode "auto" (owner page): split on commas and semicolons when most
+ * non-empty lines contain one. A trailing newline does not cancel that.
+ * A list that is mostly one item per line stays that way, so
+ * "milk, cookies" on its own line can still be a single square.
  */
 export function parseItems(raw, options = {}) {
   const mode = options.mode === "auto" ? "auto" : "lines";
   const text = normalizeRaw(raw);
-  const hasBreak = text.includes("\n");
+  const lines = text.split("\n");
   let parts;
-  if (mode === "auto" && !hasBreak && /[;,]/.test(text)) {
-    parts = text.split(/[;,]/);
+  if (mode === "auto" && linesUseDelimiters(text)) {
+    parts = [];
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      if (/[,;]/.test(line)) parts.push(...splitDelimited(line));
+      else parts.push(line);
+    }
   } else {
-    parts = text.split("\n");
+    parts = lines;
   }
 
   const items = [];
@@ -42,7 +107,7 @@ export function parseItems(raw, options = {}) {
   const warnings = [];
 
   for (const part of parts) {
-    const trimmed = part.trim();
+    const trimmed = stripWrappingQuotes(part);
     if (!trimmed) continue;
     const key = trimmed.toLocaleLowerCase();
     if (byKey.has(key)) {

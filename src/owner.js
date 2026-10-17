@@ -7,7 +7,7 @@ import {
   ownerCardFilename,
   ownerRecipeFilename,
 } from "./core/filename.js";
-import { deliveryIssuesIn } from "./pdf/etsy-safe.js";
+import { deliveryIssuesIn, partitionDeliveryHits } from "./pdf/etsy-safe.js";
 import { prepareImageFile, MAX_PICTURES } from "./pdf/images.js";
 import { buildDeliveryFiles, deliveryWarning } from "./pdf/split.js";
 import { renderLicensePdf } from "./pdf/license.js";
@@ -29,6 +29,7 @@ import {
   TURNAROUND,
   etsyBlockedMessage,
   splitTooBigMessage,
+  wordingWarning,
 } from "./ui/owner-messages.js";
 
 const $ = (id) => document.getElementById(id);
@@ -125,6 +126,11 @@ function updatePreview() {
       }),
     };
   }
+  const countLabel = $("item-count");
+  if (countLabel && input.mode !== "pictures") {
+    const n = items.length;
+    countLabel.textContent = n ? `${n} ${n === 1 ? "item" : "items"}` : "";
+  }
   renderPreview($("preview"), {
     card,
     theme: input.theme,
@@ -138,7 +144,34 @@ function updatePreview() {
     showAccent: input.showAccent,
     pictureUrls: new Map(pictures.map((picture) => [picture.id, picture.previewUrl])),
   });
-  showMessages(assessForm(input, "owner"));
+  const assessed = assessForm(input, "owner");
+  showMessages(assessed);
+  refreshWording(input, assessed);
+}
+
+function refreshWording(input, result) {
+  const box = $("wording-warning");
+  const row = $("wording-row");
+  const override = $("wording-override");
+  if (!box || !row || !override) return;
+  const parts = partitionDeliveryHits(deliveryIssuesIn(stringsForDelivery(input, result)));
+  if (parts.hard.length) {
+    box.hidden = false;
+    box.textContent = etsyBlockedMessage(parts.hard);
+    row.hidden = true;
+    override.checked = false;
+    return;
+  }
+  if (parts.soft.length) {
+    box.hidden = false;
+    box.textContent = wordingWarning(parts.soft);
+    row.hidden = false;
+    return;
+  }
+  box.hidden = true;
+  box.textContent = "";
+  row.hidden = true;
+  override.checked = false;
 }
 
 function renderPictureList() {
@@ -236,17 +269,24 @@ async function onMakePdf(event) {
   const result = assessForm(input, "owner");
   showMessages(result);
   if (!result.ok) return;
-  const hits = deliveryIssuesIn(stringsForDelivery(input, result));
-  if (hits.length) {
-    $("order-status").textContent = etsyBlockedMessage(hits);
+  const parts = partitionDeliveryHits(deliveryIssuesIn(stringsForDelivery(input, result)));
+  const allowWording = Boolean($("wording-override")?.checked);
+  if (parts.hard.length) {
+    $("order-status").textContent = etsyBlockedMessage(parts.hard);
+    return;
+  }
+  if (parts.soft.length && !allowWording) {
+    $("order-status").textContent = wordingWarning(parts.soft);
     return;
   }
   $("order-status").textContent = "Making the PDF…";
-  const exported = await makeFile(input, result);
+  const exported = await makeFile(input, result, { allowWording });
   if (!exported.ok) {
     $("order-status").textContent = exported.error === "etsy-text"
       ? etsyBlockedMessage(exported.hits || [])
-      : "The PDF could not be made from this list.";
+      : exported.error === "etsy-wording"
+        ? wordingWarning(exported.hits || [])
+        : "The PDF could not be made from this list.";
     return;
   }
   const filename = ownerCardFilename({
@@ -273,6 +313,7 @@ async function onSplit() {
     singleBytes: pendingBytes,
     renderSlice: async ({ start, end, part, parts }) => {
       const exported = await makeFile(input, result, {
+        allowWording: Boolean($("wording-override")?.checked),
         cardStart: start,
         cardEnd: end,
         cardTotal: result.count,

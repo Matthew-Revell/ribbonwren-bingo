@@ -6,11 +6,11 @@ Recorded against the MVP on this branch. Automated commands were run in this env
 
 | Check | Result |
 | --- | --- |
-| `npm test` (Vitest: shuffle, cards, limits, unlock, source rules, PDF) | 49 passed |
-| `npm run test:e2e` | 16 passed, 2 skipped |
+| `npm test` (Vitest: shuffle, cards, limits, unlock, source rules, PDF) | 56 passed |
+| `npm run test:e2e` | 30 passed |
 | `npm run build` | `dist/` produced |
 
-The two skipped end-to-end cases are the 100-card Pro download on Firefox and WebKit. That case runs in Chromium. The same unlock and download path is covered for an ordinary file in all three browsers.
+The 100-card Pro download runs in Chromium, Firefox, and WebKit. A call sheet for one card says “1 card”.
 
 PDF checks, using poppler, include:
 
@@ -24,7 +24,7 @@ PDF checks, using poppler, include:
 - Theme colors sampled from a raster of page 1, within 2 levels per channel.
 - License PDF names the buyer, the order, the code id, and the unlock link, and does not say Etsy.
 
-Unit checks include the frozen `rwb-v1` shuffle, owner file names (`RW-Bingo_<order>_<N>c_<Letter|A4>.pdf`, at most 70 safe characters), comma and semicolon lists, the 19 MB split helper, and a ledger with no email column.
+Unit checks include the frozen `rwb-v1` shuffle (seeds ignore case, dashes, and spaces), owner file names (`RW-Bingo_<order>_<N>c_<Letter|A4>.pdf`, at most 70 safe characters, accents folded), comma and semicolon lists including a trailing newline and quoted items, bare domains, short links, emails, and full-width links, the 19 MB split helper, and a ledger with no email column.
 
 ## Not automated
 

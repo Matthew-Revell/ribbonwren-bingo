@@ -74,8 +74,13 @@ test("disables the free space on a 4 by 4 grid and labels the fields", async ({ 
   expect(unlabeled).toEqual([]);
 });
 
-test("unlocks Pro from a link and then removes it", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== "chromium", "The 100-card download runs in Chromium.");
+test("unlocks Pro from a link and then removes it", async ({ page }) => {
+  const hosts = new Set();
+  page.on("request", (request) => {
+    const url = request.url();
+    if (url.startsWith("data:") || url.startsWith("blob:")) return;
+    hosts.add(new URL(url).host);
+  });
   const code = await codeFor("pro", "Sarah", "1001");
   await page.goto(`./index.html#unlock=${encodeURIComponent(code)}`);
   await expect(page.locator("#licensed")).toContainText("Licensed to Sarah");
@@ -89,8 +94,26 @@ test("unlocks Pro from a link and then removes it", async ({ page }, testInfo) =
   const saved = await pdfPages(download);
   expect(saved.pdf.getPageCount()).toBeGreaterThanOrEqual(101);
   expect(saved.text).not.toContain("Made free with Ribbonwren Paper Co.");
+  expect(saved.text).toContain("100 cards");
+  expect([...hosts].every((host) => host.startsWith("127.0.0.1") || host.startsWith("localhost"))).toBe(true);
   await page.getByRole("button", { name: "Remove unlock from this browser" }).click();
   await expect(page.locator("#licensed")).toBeHidden();
+  await page.reload();
+  await expect(page.locator("#licensed")).toBeHidden();
+});
+
+test("a fresh window does not keep an unlock", async ({ browser, baseURL }) => {
+  const code = await codeFor("pro", "Nora", "1004");
+  const first = await browser.newContext({ baseURL });
+  const page = await first.newPage();
+  await page.goto(`./index.html#unlock=${encodeURIComponent(code)}`);
+  await expect(page.locator("#licensed")).toContainText("Licensed to Nora");
+  await first.close();
+  const second = await browser.newContext({ baseURL });
+  const fresh = await second.newPage();
+  await fresh.goto("./index.html");
+  await expect(fresh.locator("#licensed")).toBeHidden();
+  await second.close();
 });
 
 test("shows the picture lock, then accepts a png and explains a bad HEIC", async ({ page }) => {
@@ -117,6 +140,12 @@ test("shows the picture lock, then accepts a png and explains a bad HEIC", async
 });
 
 test("owner mode names the custom-order file and keeps the private key out of storage", async ({ page }) => {
+  const hosts = new Set();
+  page.on("request", (request) => {
+    const url = request.url();
+    if (url.startsWith("data:") || url.startsWith("blob:")) return;
+    hosts.add(new URL(url).host);
+  });
   await page.goto("./owner.html");
   await expect(page.getByRole("heading", { name: "Enter the owner code" })).toBeVisible();
   await page.locator("#owner-code").fill("not-a-code");
@@ -153,4 +182,107 @@ test("owner mode names the custom-order file and keeps the private key out of st
   await expect(page.getByText("Do not upload this file to a marketplace")).toBeVisible();
   const stored = await page.evaluate(() => JSON.stringify(localStorage));
   expect(stored).not.toContain(privateJwk.d);
+  expect([...hosts].every((host) => host.startsWith("127.0.0.1") || host.startsWith("localhost"))).toBe(true);
+});
+
+async function openOwner(page, name, order) {
+  const owner = await codeFor("owner", name, order);
+  await page.goto("./owner.html");
+  await page.locator("#owner-code").fill(owner);
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.locator("#owner-app")).toBeVisible();
+}
+
+test("saves an owner recipe and loads it back", async ({ page }) => {
+  await openOwner(page, "Matthew", "recipe");
+  await page.getByLabel("3×3").check();
+  const lines = Array.from({ length: 9 }, (_, index) => `Spice ${index + 1}`).join("\n");
+  await page.locator("#order-number").fill("WEB-9");
+  await page.locator("#buyer-name").fill("Ada");
+  await page.locator("#words").fill(lines);
+  await page.locator("#card-count").fill("2");
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("button", { name: "Save recipe" }).click(),
+  ]);
+  await page.locator("#words").fill("");
+  await page.locator("#load-recipe").setInputFiles(await download.path());
+  await expect(page.locator("#order-status")).toContainText("Recipe loaded");
+  await expect(page.locator("#words")).toHaveValue(/Spice 1/);
+  await expect(page.locator("#order-number")).toHaveValue("WEB-9");
+  await expect(page.locator("#buyer-name")).toHaveValue("Ada");
+  await expect(page.locator("#card-count")).toHaveValue("2");
+});
+
+test("counts comma-separated items and warns before printing a sales pitch", async ({ page }) => {
+  await openOwner(page, "Matthew", "words");
+  const commas = Array.from({ length: 30 }, (_, index) => `word${index}`).join(", ");
+  await page.locator("#words").fill(`${commas}\n`);
+  await expect(page.locator("#item-count")).toHaveText("30 items");
+  const lines = Array.from({ length: 12 }, (_, index) => `a${index}, b${index}, c${index}`).join("\n");
+  await page.locator("#words").fill(lines);
+  await expect(page.locator("#item-count")).toHaveText("36 items");
+
+  const quoted = ['"milk, cookies"', ...Array.from({ length: 7 }, (_, index) => `cup ${index}`)].join("\n");
+  await page.locator("#words").fill(quoted);
+  await page.locator("#card-count").fill("1");
+  await page.getByLabel("3×3").check();
+  await expect(page.locator("#item-count")).toHaveText("8 items");
+  await expect(page.locator("#preview")).toContainText("milk, cookies");
+
+  const pitch = ["Pro tip", "Unlock", "Upgrade", ...Array.from({ length: 6 }, (_, index) => `cup ${index}`)].join("\n");
+  await page.locator("#words").fill(pitch);
+  await expect(page.locator("#wording-warning")).toContainText("print them anyway");
+  await expect(page.locator("#wording-override")).toBeVisible();
+  await page.locator("#order-number").fill("WEB-10");
+  await page.getByRole("button", { name: "Make PDF" }).click();
+  await expect(page.locator("#order-status")).toContainText("print them anyway");
+  await page.locator("#wording-override").check();
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("button", { name: "Make PDF" }).click(),
+  ]);
+  const saved = await pdfPages(download);
+  expect(saved.text).toContain("Pro tip");
+
+  await page.locator("#words").fill(["ribbonwren.com", ...Array.from({ length: 8 }, (_, index) => `cup ${index}`)].join("\n"));
+  await expect(page.locator("#wording-warning")).toContainText("web addresses");
+  await expect(page.locator("#wording-row")).toBeHidden();
+  await page.getByRole("button", { name: "Make PDF" }).click();
+  await expect(page.locator("#order-status")).toContainText("web addresses");
+});
+
+test("accepts a large photo, a WebP, and several pictures", async ({ page }) => {
+  const { PNG } = await import("pngjs");
+  function png(width, height, rgb) {
+    const image = new PNG({ width, height });
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const index = (y * width + x) * 4;
+        image.data[index] = rgb[0];
+        image.data[index + 1] = rgb[1];
+        image.data[index + 2] = rgb[2];
+        image.data[index + 3] = 255;
+      }
+    }
+    return PNG.sync.write(image);
+  }
+  const code = await codeFor("pro", "Sam", "1005");
+  await page.goto(`./index.html#unlock=${encodeURIComponent(code)}`);
+  await expect(page.locator("#licensed")).toContainText("Licensed to Sam");
+  await page.getByRole("radio", { name: "Pictures" }).check();
+  const files = [
+    { name: "large.png", mimeType: "image/png", buffer: png(1400, 900, [180, 40, 40]) },
+    { name: "mark.webp", mimeType: "image/webp", buffer: readFileSync(new URL("../fixtures/mark.webp", import.meta.url)) },
+    ...Array.from({ length: 6 }, (_, index) => ({
+      name: `tile-${index}.png`,
+      mimeType: "image/png",
+      buffer: png(40, 40, [20 + index * 20, 80, 120]),
+    })),
+  ];
+  await page.locator("#picture-input").setInputFiles(files);
+  await expect(page.locator("#picture-list img")).toHaveCount(8);
+  await expect.poll(() => page.locator("#picture-list img").first().evaluate((img) => img.naturalWidth)).toBeGreaterThan(100);
+  const width = await page.locator("#picture-list img").first().evaluate((img) => img.naturalWidth);
+  expect(width).toBeLessThanOrEqual(600);
 });

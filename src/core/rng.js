@@ -87,8 +87,20 @@ export function settingsKey({ grid, freeSpace }) {
   return `g${Number(grid)}f${freeSpace ? 1 : 0}`;
 }
 
+/**
+ * Seeds are case-insensitive and ignore dashes and spaces.
+ * kj4p-92, KJ4P-92, and KJ4P92 hash to the same shuffle.
+ * The printed seed can still show the dashes the person typed.
+ */
+export function normalizeSeed(seed) {
+  return String(seed ?? "")
+    .normalize("NFKC")
+    .toUpperCase()
+    .replace(/[\s-]+/g, "");
+}
+
 export function cardKey({ seed, settings, listHash, index, retry = 0 }) {
-  let key = `${ALGORITHM}|${seed}|${settings}|${listHash}|card:${index}`;
+  let key = `${ALGORITHM}|${normalizeSeed(seed)}|${settings}|${listHash}|card:${index}`;
   if (retry > 0) key += `|retry:${retry}`;
   return key;
 }
