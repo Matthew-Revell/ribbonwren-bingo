@@ -1,0 +1,13 @@
+{
+  "key_ops": [
+    "sign"
+  ],
+  "ext": true,
+  "kty": "EC",
+  "x": "kRbZ057wkFbiHYOovOVljQaT2KDxhAmNRpNdhaiwn4c",
+  "y": "aMeBnLYbVNw3hR_x31GN-PqJboqGL6hBUE4gQFel4no",
+  "crv": "P-256",
+  "d": "v90AxDh1KCM_aEMJEA7DRh7uik7fv4dJ378xYsbM_GM",
+  "_warning": "TEST/DEV KEY ONLY. NOT FOR REAL SALES. Anyone with this file can forge unlock codes. Matthew must generate a production key with tools/make-keys.mjs and replace the public key before launch.",
+  "alg": "ES256"
+}

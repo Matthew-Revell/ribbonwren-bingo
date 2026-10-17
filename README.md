@@ -1,1 +1,65 @@
-# ribbonwren-bingo
+# Ribbonwren Bingo
+
+A bingo and party-game card generator for [Ribbonwren Paper Co.](https://matthew-revell.github.io/ribbonwren-bingo/). Cards and the call sheet are built in the browser. Word lists, pictures, and unlock codes stay on the device. There is no account and no email field.
+
+## Run it
+
+```bash
+npm install
+npm run dev
+```
+
+Open http://127.0.0.1:4173/ribbonwren-bingo/ (the dev server in this repo uses that base path; `npm run dev` alone uses Vite’s default port). Owner mode is at `owner.html` and is not linked from the public pages.
+
+```bash
+npm test          # unit tests and PDF checks (needs poppler: pdfinfo, pdffonts, pdftotext, pdftoppm)
+npm run test:e2e  # Chromium, Firefox, and WebKit
+npm run build     # static site in dist/
+```
+
+## What a visitor can do
+
+- Paste a word list and download up to 10 cards, plus a call sheet, on US Letter or A4, one or two cards per page.
+- Everyday and Christmas themes, with an ink-saver option.
+- The same list, settings, and seed always reprint the same cards (`rwb-v1`).
+- A small footer on free cards. It includes a shop link only when `shopUrl` is set in `src/config.js`.
+
+Pro, once a code is unlocked in the browser: up to 500 cards, pictures in the squares, save and load a game file, and no free footer. Lifetime price in the copy is $19.99.
+
+## Pro is not an Etsy product
+
+Etsy does not allow selling access codes or licenses to software. Pro is sold only from this site, through a checkout that is not chosen yet (Lemon Squeezy or Gumroad are the two candidates).
+
+`src/config.js` has one purchase URL, `purchaseUrl`. While it is empty, the public page shows **Pro coming soon** and does not link anywhere. When checkout exists, set `purchaseUrl` to that page. Nothing else in the app needs to change.
+
+The signed-code generator on the owner page is for owner codes and for future website sales. The license PDF (`ribbonwren-bingo-license-<order>.pdf`) is for those website sales. It must not be uploaded to a marketplace or described as a marketplace delivery.
+
+Custom “your words” printables are the Etsy product. Those PDFs are checked so they contain no upgrade text, links, QR codes, web addresses, or the word Pro, including in the document title, subject, keywords, producer, and creator. The owner page promises **2 business days** for those custom orders only. Public pages do not.
+
+Owner download names look like `RW-Bingo_<order#>_<N>c_<Letter|A4>.pdf`. They are at most 70 characters and use only letters, digits, periods, underscores, and hyphens. Around 19 MB the owner page warns and can split the set. A marketplace file limit is 20 MB, and at most 5 files.
+
+Owner word lists can be separated with line breaks, or with commas or semicolons when the list has no line breaks. Picture uploads accept PNG, JPEG, WebP, and HEIC. HEIC is converted in the browser when it can be; otherwise the page explains how to export a JPEG.
+
+## Unlock codes
+
+A code is a signed payload. The browser checks the signature with the public key in `src/unlock/public-key.js`. It does not call a payment processor. A second code type can be plugged in later by setting `externalCodeType` and passing a verifier. That path is off.
+
+The repository includes a **TEST/DEV** key pair so the tests can run. The public page shows a banner while `KEY_STATUS` is not `"production"`. Do not sell codes from this copy.
+
+Before any real sale:
+
+1. Run `node tools/make-keys.mjs ~/ribbonwren-unlock-PRIVATE.jwk`. The tool will not write a private key inside this repo.
+2. Keep that file, and one backup you control. Anyone with it can mint codes.
+3. Replace the public key in `src/unlock/public-key.js` with the key the tool prints, and set `KEY_STATUS` to `"production"`.
+
+Revoke a code by adding its id to `public/revoked.json`.
+
+## Deploy
+
+Merging to `main` is the go-live. GitHub Actions runs the tests on pull requests. The Pages workflow (`.github/workflows/deploy.yml`) builds `dist/` and deploys on a push to `main`.
+
+In the repository settings, set **Pages → Build and deployment → Source** to **GitHub Actions**. Until that is set, the workflow has nowhere to publish.
+
+## What is not in this version
+
+Four-up sheets, calling slips, a Winter Classroom theme, and batch CSV or ZIP export were left out so the printable cards, the call sheet, unique reprints, privacy, and owner mode could ship together. There is no buyer account.
