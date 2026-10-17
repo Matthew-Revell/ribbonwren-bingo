@@ -34,6 +34,7 @@ These still need a person, on purpose:
 - A production key, created with `tools/make-keys.mjs` and stored outside the repo, then swapped in before any sale. The committed key is test-only.
 - A real HEIC photo from a phone. The suite uploads a file that is not a real HEIC and checks the explanation. `heic2any` is bundled for photos the browser can convert.
 - Checkout. `purchaseUrl` is empty, so the public page says “Pro coming soon.”
+- The Pages deploy itself. It runs only after Tests is green on `main`, and it refuses to publish while `KEY_STATUS` is not `"production"`.
 - The Etsy listing itself, and a manual look at an uploaded custom-order PDF in Etsy’s preview.
 - Lighthouse. Not run in this environment.
 
