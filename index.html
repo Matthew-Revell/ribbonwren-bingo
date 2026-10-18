@@ -3,6 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self' https://api.lemonsqueezy.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'">
     <title>Ribbonwren Bingo</title>
     <meta name="description" content="Make printable bingo cards from your own word list. The cards are built in your browser. Nothing is uploaded.">
     <meta property="og:title" content="Ribbonwren Bingo">
@@ -148,7 +149,9 @@
               <button type="button" class="secondary" id="unlock-button">Unlock</button>
               <button type="button" class="quiet" id="deactivate-device" hidden>Deactivate this device</button>
               <button type="button" class="quiet" id="remove-unlock">Remove unlock from this browser</button>
+              <button type="button" class="quiet" id="remove-anyway" hidden>Remove anyway</button>
             </div>
+            <p id="unlock-key-mask" class="field-msg" hidden></p>
             <p id="unlock-msg" class="field-msg error"></p>
           </fieldset>
         </form>

@@ -1,4 +1,4 @@
-import { siteConfig, purchaseHref } from "./config.js";
+import { siteConfig, checkoutHref } from "./config.js";
 import { buildCards } from "./core/cards.js";
 import { parseItems } from "./core/items.js";
 import { getLimits } from "./core/limits.js";
@@ -10,8 +10,8 @@ import { KEY_STATUS, PUBLIC_KEY } from "./unlock/public-key.js";
 import { loadRevokedIds, verifyCode } from "./unlock/verify.js";
 import {
   deactivateLemonSqueezyLicense,
+  isLemonSqueezyKey,
   licenseStorageRecord,
-  sameLicenseKey,
   verifyLemonSqueezyLicense,
 } from "./unlock/lemonsqueezy.js";
 import { clearAppData, clearLegacyUnlock, clearUnlock, loadDraft, loadLegacyUnlock, loadUnlock, saveDraft, saveUnlock } from "./unlock/storage.js";
@@ -23,6 +23,8 @@ import { SAMPLE_WORDS } from "./ui/sample-words.js";
 import {
   PRO_COMING_SOON,
   PRO_PRICE_NOTE,
+  SLOT_NOT_FREED,
+  maskedKeyLabel,
   emojiDropped,
   emojiNote,
   licensedLabel,
@@ -111,7 +113,7 @@ function renderProOffer() {
     marker.textContent = "Test mode";
     offer.append(marker);
   }
-  const href = purchaseHref();
+  const href = checkoutHref({ dev: import.meta.env.DEV, search: location.search });
   if (href) {
     const link = document.createElement("a");
     link.className = "button";
@@ -309,6 +311,7 @@ function renderPictureList() {
 async function onPictures(event) {
   const files = [...event.target.files];
   event.target.value = "";
+  if (files.length === 0) return;
   const messages = [];
   for (const file of files) {
     if (pictures.length >= MAX_PICTURES) {
@@ -330,18 +333,90 @@ function setUnlockMessage(text, kind = "error") {
   node.textContent = text || "";
 }
 
-async function acceptCode(code) {
+function showKeyMask(key) {
+  const node = $("unlock-key-mask");
+  const input = $("unlock-code");
+  if (input) input.value = "";
+  if (!node) return;
+  if (isLemonSqueezyKey(key)) {
+    node.hidden = false;
+    node.textContent = maskedKeyLabel(key);
+    return;
+  }
+  node.hidden = true;
+  node.textContent = "";
+}
+
+function hideKeyMask() {
+  const node = $("unlock-key-mask");
+  if (!node) return;
+  node.hidden = true;
+  node.textContent = "";
+}
+
+function hideRemoveAnyway() {
+  const button = $("remove-anyway");
+  if (!button) return;
+  button.hidden = true;
+  button.dataset.action = "";
+}
+
+function showRemoveAnyway(action) {
+  const button = $("remove-anyway");
+  button.hidden = false;
+  button.dataset.action = action;
+  button.textContent = action === "all" ? "Clear anyway" : "Remove anyway";
+}
+
+async function freeLemonSlot() {
+  const stored = loadUnlock("pro");
+  if (stored?.provider !== "lemonsqueezy" || !isLemonSqueezyKey(stored.code) || !stored.instanceId) {
+    return { ok: true };
+  }
+  const result = await deactivateLemonSqueezyLicense(stored.code, stored.instanceId);
+  if (result.ok || result.reason === "lemon-instance") return { ok: true };
+  return { ok: false, network: result.reason === "lemon-network" };
+}
+
+function dropUnlockLocal() {
+  clearUnlock(unlock?.payload?.tier === "owner" ? "owner" : "pro");
+  clearLegacyUnlock();
+  unlock = null;
+  renderUnlock();
+  updatePreview();
+  showKeyMask("");
+}
+
+function wipeSavedData() {
+  clearAppData();
+  unlock = null;
+  resetForm();
+  renderUnlock();
+  updatePreview();
+  showKeyMask("");
+  $("download-status").textContent = "Saved words and the unlock were removed from this browser.";
+}
+
+async function acceptCode(code, { allowActivate = false } = {}) {
   const trimmed = String(code || "").trim();
   const stored = loadUnlock("pro");
-  const same = stored && sameLicenseKey(stored.code, trimmed) ? stored : null;
   const revokedIds = await loadRevokedIds(`${import.meta.env.BASE_URL}revoked.json`);
   const result = await verifyCode(trimmed, {
     publicKey: PUBLIC_KEY,
     revokedIds,
     externalVerify: externalVerify(),
-    instanceId: same?.instanceId || "",
-    validatedAt: same?.validatedAt || 0,
+    stored,
+    allowActivate,
   });
+  if (!result.ok && result.reason === "lemon-instance") {
+    clearUnlock("pro");
+    if (unlock?.payload?.provider === "lemonsqueezy") unlock = null;
+    hideKeyMask();
+    renderUnlock();
+    updatePreview();
+    setUnlockMessage(unlockError(result.reason));
+    return false;
+  }
   setUnlockMessage(result.ok ? "" : unlockError(result.reason));
   if (!result.ok) return false;
   unlock = { code: trimmed, payload: result.payload };
@@ -350,6 +425,8 @@ async function acceptCode(code) {
   } else {
     saveUnlock({ code: trimmed }, result.payload.tier === "owner" ? "owner" : "pro");
   }
+  showKeyMask(trimmed);
+  hideRemoveAnyway();
   renderUnlock();
   updatePreview();
   return true;
@@ -377,8 +454,14 @@ async function bootUnlock() {
   const params = new URLSearchParams(location.hash.replace(/^#/, ""));
   const fromHash = params.get("unlock");
   if (fromHash) {
-    const ok = await acceptCode(fromHash.trim());
-    if (ok) history.replaceState(null, "", location.pathname + location.search);
+    const trimmed = fromHash.trim();
+    if (isLemonSqueezyKey(trimmed)) {
+      history.replaceState(null, "", location.pathname + location.search);
+      setUnlockMessage(unlockError("lemon-link"));
+    } else {
+      const ok = await acceptCode(trimmed);
+      if (ok) history.replaceState(null, "", location.pathname + location.search);
+    }
   }
   if (!unlock) {
     const legacy = loadLegacyUnlock();
@@ -537,7 +620,8 @@ async function onLoadGame(event) {
 
 function bind() {
   $("game-form").addEventListener("submit", onDownload);
-  $("game-form").addEventListener("input", () => {
+  $("game-form").addEventListener("input", (event) => {
+    if (event.target === $("picture-input")) return;
     updatePreview();
     remember();
   });
@@ -559,22 +643,36 @@ function bind() {
     remember();
   });
   $("picture-input").addEventListener("change", onPictures);
-  $("unlock-button").addEventListener("click", () => acceptCode($("unlock-code").value.trim()));
+  $("unlock-button").addEventListener("click", () => acceptCode($("unlock-code").value.trim(), { allowActivate: true }));
   $("deactivate-device").addEventListener("click", () => deactivateDevice());
-  $("remove-unlock").addEventListener("click", () => {
-    clearUnlock(unlock?.payload?.tier === "owner" ? "owner" : "pro");
-    clearLegacyUnlock();
-    unlock = null;
-    renderUnlock();
-    updatePreview();
+  $("remove-unlock").addEventListener("click", async () => {
+    if (unlock?.payload?.provider === "lemonsqueezy" || loadUnlock("pro")?.provider === "lemonsqueezy") {
+      const release = await freeLemonSlot();
+      if (!release.ok) {
+        setUnlockMessage(SLOT_NOT_FREED);
+        showRemoveAnyway("unlock");
+        return;
+      }
+    }
+    hideRemoveAnyway();
+    dropUnlockLocal();
   });
-  $("clear-data").addEventListener("click", () => {
-    clearAppData();
-    unlock = null;
-    resetForm();
-    renderUnlock();
-    updatePreview();
-    $("download-status").textContent = "Saved words and the unlock were removed from this browser.";
+  $("remove-anyway").addEventListener("click", () => {
+    const action = $("remove-anyway").dataset.action;
+    hideRemoveAnyway();
+    setUnlockMessage("");
+    if (action === "all") wipeSavedData();
+    else dropUnlockLocal();
+  });
+  $("clear-data").addEventListener("click", async () => {
+    const release = await freeLemonSlot();
+    if (!release.ok) {
+      setUnlockMessage(SLOT_NOT_FREED);
+      showRemoveAnyway("all");
+      return;
+    }
+    hideRemoveAnyway();
+    wipeSavedData();
   });
   $("save-game").addEventListener("click", onSaveGame);
   $("load-game").addEventListener("change", onLoadGame);

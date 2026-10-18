@@ -52,6 +52,19 @@ async function blobFromCanvas(canvas, type, quality) {
   return new Promise((resolve) => canvas.toBlob(resolve, type, quality));
 }
 
+let dynamicCode;
+
+function dynamicCodeAllowed() {
+  if (dynamicCode != null) return dynamicCode;
+  try {
+    new Function("return 1")();
+    dynamicCode = true;
+  } catch {
+    dynamicCode = false;
+  }
+  return dynamicCode;
+}
+
 async function convertHeic(file) {
   if (typeof createImageBitmap === "function") {
     try {
@@ -67,10 +80,16 @@ async function convertHeic(file) {
       /* Fall through to the library. */
     }
   }
+  // heic2any builds a decoder with new Function, which this page's policy blocks.
+  if (!dynamicCodeAllowed()) return null;
   try {
     const mod = await import("heic2any");
     const heic2any = mod.default || mod;
-    const result = await heic2any({ blob: file, toType: "image/jpeg", quality: 0.85 });
+    const result = await Promise.race([
+      heic2any({ blob: file, toType: "image/jpeg", quality: 0.85 }),
+      new Promise((resolve) => setTimeout(() => resolve(null), 8000)),
+    ]);
+    if (!result) return null;
     return Array.isArray(result) ? result[0] : result;
   } catch {
     return null;

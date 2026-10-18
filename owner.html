@@ -3,6 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self' https://api.lemonsqueezy.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'">
     <meta name="robots" content="noindex">
     <title>Owner · Ribbonwren Bingo</title>
     <link rel="icon" href="./img/ribbonwren-mark.png">
@@ -65,6 +66,7 @@
                 <input id="picture-input" type="file" accept="image/png,image/jpeg,image/webp,image/heic,image/heif,.heic,.heif" multiple>
               </div>
               <ul id="picture-list" class="picture-list"></ul>
+              <p id="picture-qr-note" class="field-msg">Pictures can't be checked for QR codes. Etsy listings can't include a QR code, so don't put one in a photo.</p>
               <p id="pictures-msg" class="field-msg error"></p>
             </div>
             <fieldset>

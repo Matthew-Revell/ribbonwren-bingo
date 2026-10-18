@@ -2,13 +2,14 @@ import { describe, expect, it } from "vitest";
 import { siteConfig } from "../../src/config.js";
 import { verifyCode } from "../../src/unlock/verify.js";
 import {
+  LEMON_CLOCK_SKEW_MS,
   LEMON_OFFLINE_GRACE_MS,
   deactivateLemonSqueezyLicense,
   isLemonSqueezyKey,
   licenseStorageRecord,
   verifyLemonSqueezyLicense,
 } from "../../src/unlock/lemonsqueezy.js";
-import { unlockError } from "../../src/ui/messages.js";
+import { SLOT_NOT_FREED, maskedKeyLabel, unlockError } from "../../src/ui/messages.js";
 import { loadUnlock, saveUnlock } from "../../src/unlock/storage.js";
 
 const KEY = "38b1460a-5104-4067-a91d-77b872934d51";
@@ -50,6 +51,16 @@ function strip(overrides) {
   return copy;
 }
 
+function record(overrides = {}) {
+  return {
+    provider: "lemonsqueezy",
+    code: KEY,
+    instanceId: INSTANCE,
+    validatedAt: NOW - 1000,
+    ...overrides,
+  };
+}
+
 function mockFetch(handler) {
   const calls = [];
   const fetchFn = async (url, init) => {
@@ -75,6 +86,7 @@ describe("Lemon Squeezy licenses", () => {
     const result = await verifyLemonSqueezyLicense(KEY, {
       fetch: fetchFn,
       now: NOW,
+      allowActivate: true,
       userAgent: "Mozilla/5.0 Chrome/120.0",
     });
     expect(result.ok).toBe(true);
@@ -110,8 +122,7 @@ describe("Lemon Squeezy licenses", () => {
     const result = await verifyLemonSqueezyLicense(KEY, {
       fetch: fetchFn,
       now: NOW,
-      instanceId: INSTANCE,
-      validatedAt: NOW - 1000,
+      stored: record(),
     });
     expect(result.ok).toBe(true);
     expect(result.offline).toBeUndefined();
@@ -131,7 +142,7 @@ describe("Lemon Squeezy licenses", () => {
         if (url.endsWith("/deactivate")) return { json: { deactivated: true } };
         return { json: body({ meta }) };
       });
-      const result = await verifyLemonSqueezyLicense(KEY, { fetch: fetchFn, now: NOW });
+      const result = await verifyLemonSqueezyLicense(KEY, { fetch: fetchFn, now: NOW, allowActivate: true });
       expect(result).toEqual({ ok: false, reason: "lemon-mismatch" });
       expect(calls.map((call) => call.url.endsWith("/deactivate"))).toEqual([false, true]);
     }
@@ -144,7 +155,7 @@ describe("Lemon Squeezy licenses", () => {
       delete json.meta;
       return { json };
     });
-    const result = await verifyLemonSqueezyLicense(KEY, { fetch: fetchFn, now: NOW });
+    const result = await verifyLemonSqueezyLicense(KEY, { fetch: fetchFn, now: NOW, allowActivate: true });
     expect(result.reason).toBe("lemon-mismatch");
     expect(calls.some((call) => call.url.endsWith("/deactivate"))).toBe(true);
   });
@@ -157,7 +168,7 @@ describe("Lemon Squeezy licenses", () => {
         license_key: { status: "active", activation_limit: 3 },
       }),
     }));
-    expect((await verifyLemonSqueezyLicense(KEY, { fetch: limit.fetchFn, now: NOW })).reason).toBe("lemon-limit");
+    expect((await verifyLemonSqueezyLicense(KEY, { fetch: limit.fetchFn, now: NOW, allowActivate: true })).reason).toBe("lemon-limit");
     expect(unlockError("lemon-limit")).toContain("3 devices");
 
     const disabled = mockFetch(async () => ({
@@ -167,7 +178,7 @@ describe("Lemon Squeezy licenses", () => {
         license_key: { status: "disabled" },
       }),
     }));
-    expect((await verifyLemonSqueezyLicense(KEY, { fetch: disabled.fetchFn, now: NOW })).reason).toBe("lemon-disabled");
+    expect((await verifyLemonSqueezyLicense(KEY, { fetch: disabled.fetchFn, now: NOW, allowActivate: true })).reason).toBe("lemon-disabled");
 
     const refunded = mockFetch(async () => ({
       json: body({ activated: false, valid: false, error: "Order refunded.", license_key: { status: "disabled" } }),
@@ -175,15 +186,14 @@ describe("Lemon Squeezy licenses", () => {
     expect((await verifyLemonSqueezyLicense(KEY, {
       fetch: refunded.fetchFn,
       now: NOW,
-      instanceId: INSTANCE,
-      validatedAt: NOW,
+      stored: record({ validatedAt: NOW }),
     })).reason).toBe("lemon-disabled");
 
     const missing = mockFetch(async () => ({
       status: 404,
       json: { activated: false, error: "license_key not found." },
     }));
-    expect((await verifyLemonSqueezyLicense(KEY, { fetch: missing.fetchFn, now: NOW })).reason).toBe("lemon-invalid");
+    expect((await verifyLemonSqueezyLicense(KEY, { fetch: missing.fetchFn, now: NOW, allowActivate: true })).reason).toBe("lemon-invalid");
     expect(missing.calls).toHaveLength(1);
   });
 
@@ -194,8 +204,7 @@ describe("Lemon Squeezy licenses", () => {
     const fresh = await verifyLemonSqueezyLicense(KEY, {
       fetch: offline,
       now: NOW,
-      instanceId: INSTANCE,
-      validatedAt: NOW - (LEMON_OFFLINE_GRACE_MS - 1000),
+      stored: record({ validatedAt: NOW - (LEMON_OFFLINE_GRACE_MS - 1000) }),
     });
     expect(fresh.ok).toBe(true);
     expect(fresh.offline).toBe(true);
@@ -205,46 +214,118 @@ describe("Lemon Squeezy licenses", () => {
     const edge = await verifyLemonSqueezyLicense(KEY, {
       fetch: offline,
       now: NOW,
-      instanceId: INSTANCE,
-      validatedAt: NOW - LEMON_OFFLINE_GRACE_MS,
+      stored: record({ validatedAt: NOW - LEMON_OFFLINE_GRACE_MS }),
     });
     expect(edge.ok).toBe(true);
 
     const stale = await verifyLemonSqueezyLicense(KEY, {
       fetch: offline,
       now: NOW,
-      instanceId: INSTANCE,
-      validatedAt: NOW - LEMON_OFFLINE_GRACE_MS - 1,
+      stored: record({ validatedAt: NOW - LEMON_OFFLINE_GRACE_MS - 1 }),
     });
     expect(stale).toEqual({ ok: false, reason: "lemon-network" });
 
-    const first = await verifyLemonSqueezyLicense(KEY, { fetch: offline, now: NOW });
+    const first = await verifyLemonSqueezyLicense(KEY, { fetch: offline, now: NOW, allowActivate: true });
     expect(first).toEqual({ ok: false, reason: "lemon-network" });
 
     const down = mockFetch(async () => ({ status: 503, json: { error: "unavailable" } }));
     const graceless = await verifyLemonSqueezyLicense(KEY, {
       fetch: down.fetchFn,
       now: NOW,
-      instanceId: INSTANCE,
-      validatedAt: NOW - LEMON_OFFLINE_GRACE_MS - 1,
+      stored: record({ validatedAt: NOW - LEMON_OFFLINE_GRACE_MS - 1 }),
     });
     expect(graceless.reason).toBe("lemon-network");
   });
 
-  it("activates again when the stored instance is gone", async () => {
-    const { fetchFn, calls } = mockFetch(async ({ url }) => {
-      if (url.endsWith("/validate")) return { json: { valid: false, error: "instance not found" } };
-      return { json: body() };
-    });
-    const result = await verifyLemonSqueezyLicense(KEY, {
-      fetch: fetchFn,
+  it("refuses grace for a future timestamp, a made-up instance, and a different key", async () => {
+    const offline = async () => {
+      throw new Error("offline");
+    };
+    const future = await verifyLemonSqueezyLicense(KEY, {
+      fetch: offline,
       now: NOW,
-      instanceId: "11111111-1111-4111-8111-111111111111",
-      validatedAt: NOW,
+      stored: record({ validatedAt: NOW + LEMON_CLOCK_SKEW_MS + 1 }),
     });
-    expect(result.ok).toBe(true);
-    expect(result.payload.instanceId).toBe(INSTANCE);
-    expect(calls.map((call) => call.url.split("/").pop())).toEqual(["validate", "activate"]);
+    expect(future).toEqual({ ok: false, reason: "lemon-network" });
+
+    const skew = await verifyLemonSqueezyLicense(KEY, {
+      fetch: offline,
+      now: NOW,
+      stored: record({ validatedAt: NOW + LEMON_CLOCK_SKEW_MS }),
+    });
+    expect(skew.ok).toBe(true);
+    expect(skew.payload.validatedAt).toBe(NOW);
+    expect(skew.payload.validatedAt).toBeLessThanOrEqual(NOW);
+
+    const madeUp = await verifyLemonSqueezyLicense(KEY, {
+      fetch: offline,
+      now: NOW,
+      stored: record({ instanceId: "made-up" }),
+    });
+    expect(madeUp).toEqual({ ok: false, reason: "lemon-instance" });
+
+    const madeUpSubmit = await verifyLemonSqueezyLicense(KEY, {
+      fetch: offline,
+      now: NOW,
+      allowActivate: true,
+      stored: record({ instanceId: "x" }),
+    });
+    expect(madeUpSubmit).toEqual({ ok: false, reason: "lemon-network" });
+
+    const otherKey = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
+    const mismatched = await verifyLemonSqueezyLicense(KEY, {
+      fetch: offline,
+      now: NOW,
+      stored: record({ code: otherKey }),
+    });
+    expect(mismatched).toEqual({ ok: false, reason: "lemon-instance" });
+
+    const yearAhead = await verifyLemonSqueezyLicense(KEY, {
+      fetch: offline,
+      now: NOW,
+      stored: record({ validatedAt: NOW + 365 * 24 * 60 * 60 * 1000 }),
+    });
+    expect(yearAhead).toEqual({ ok: false, reason: "lemon-network" });
+
+    const bare = await verifyLemonSqueezyLicense(KEY, {
+      fetch: offline,
+      now: NOW,
+      instanceId: INSTANCE,
+      validatedAt: NOW + 86400000,
+    });
+    expect(bare).toEqual({ ok: false, reason: "lemon-instance" });
+  });
+
+  it("does not activate when validate returns 404 or the instance is gone", async () => {
+    const missing = mockFetch(async () => ({ status: 404, json: { valid: false, error: "not found" } }));
+    const gone = await verifyLemonSqueezyLicense(KEY, {
+      fetch: missing.fetchFn,
+      now: NOW,
+      allowActivate: true,
+      stored: record(),
+    });
+    expect(gone).toEqual({ ok: false, reason: "lemon-instance" });
+    expect(missing.calls.map((call) => call.url.split("/").pop())).toEqual(["validate"]);
+    expect(unlockError("lemon-instance")).toBe("This device is no longer activated. Paste your license key to activate it again.");
+
+    const named = mockFetch(async () => ({ json: { valid: false, error: "instance_id not found." } }));
+    const lost = await verifyLemonSqueezyLicense(KEY, {
+      fetch: named.fetchFn,
+      now: NOW,
+      allowActivate: true,
+      stored: record({ instanceId: "11111111-1111-4111-8111-111111111111", validatedAt: NOW }),
+    });
+    expect(lost).toEqual({ ok: false, reason: "lemon-instance" });
+    expect(named.calls.map((call) => call.url.split("/").pop())).toEqual(["validate"]);
+  });
+
+  it("does not call activate until the buyer submits the key", async () => {
+    const { fetchFn, calls } = mockFetch(async () => ({ json: body() }));
+    const blocked = await verifyLemonSqueezyLicense(KEY, { fetch: fetchFn, now: NOW });
+    expect(blocked).toEqual({ ok: false, reason: "lemon-instance" });
+    expect(calls).toHaveLength(0);
+    expect(maskedKeyLabel(KEY)).toBe("Key ending in …4d51");
+    expect(SLOT_NOT_FREED).toBe("Couldn't free this device's slot. Try again online, or contact support.");
   });
 
   it("deactivates this device and reports a network failure", async () => {
@@ -261,6 +342,14 @@ describe("Lemon Squeezy licenses", () => {
       },
     });
     expect(down).toEqual({ ok: false, reason: "lemon-network" });
+    const missingInstance = mockFetch(async () => ({
+      status: 404,
+      json: { deactivated: false, error: "instance_id not found." },
+    }));
+    expect(await deactivateLemonSqueezyLicense(KEY, INSTANCE, { fetch: missingInstance.fetchFn })).toEqual({
+      ok: false,
+      reason: "lemon-instance",
+    });
     expect(await deactivateLemonSqueezyLicense("nope", INSTANCE, { fetch: ok.fetchFn })).toEqual({
       ok: false,
       reason: "lemon-invalid",

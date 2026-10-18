@@ -32,15 +32,17 @@ Etsy does not allow selling access codes or licenses to software. Pro is sold on
 
 `src/config.js` is the only place that knows the checkout. `purchaseUrl` is the Get Pro link. While it is empty, the public page shows **Pro coming soon** and does not link anywhere. `lemonSqueezy` holds `storeId`, `productId`, `variantIds`, and `mode`.
 
-These values are the **test** store (store `500556`, product `1449237`, variant `2262220`). While `mode` is `"test"`, the Pro box shows a small Test mode marker. That marker is not drawn on a PDF.
+These values are the **test** store (store `500556`, product `1449237`, variant `2262220`). While `mode` is `"test"`, the public site does not show the checkout link. It says **Pro coming soon**. A dev build, or `?lstest=1` on the page, shows Get Pro for QA, with a small Test mode marker. That marker is not drawn on a PDF. `mode` `"live"` shows the checkout on the public site and hides the marker.
 
-To go live, edit only `src/config.js`: replace `purchaseUrl` with the live checkout URL, replace the ids inside `lemonSqueezy`, and set `mode` to `"live"`. The marker disappears. No other file needs a new id.
+To go live, edit only `src/config.js`: replace `purchaseUrl` with the live checkout URL, replace the ids inside `lemonSqueezy`, and set `mode` to `"live"`. No other file needs a new id.
 
 ## Lemon Squeezy license keys
 
 A license key is a UUID. The browser calls the public License API with no API key. The first time, it activates the key as `Ribbonwren Bingo - <browser>` and stores the instance id. Later visits validate that instance. A key is accepted only when `meta.store_id`, `meta.product_id`, and `meta.variant_id` match `lemonSqueezy`. The page stores the key, the instance id, and the time of the last successful check. It does not store the buyer’s name or email.
 
-If a later check cannot connect, Pro stays unlocked for 14 days after that last success. The first activation has no offline grace. **Deactivate this device** calls the deactivate endpoint and frees one of the 3 activations. Remove unlock only forgets this browser.
+If a later check cannot connect, Pro stays unlocked for 14 days after that last real network success. Grace applies only to a stored Lemon Squeezy record whose key matches the one entered and whose instance id is a real activation id. A timestamp more than 5 minutes in the future gets no grace, so a `validatedAt` of +365 days cannot extend the 14 days. The offline path never saves a future time, and it does not move the stored time forward. Setting the computer clock back can still stretch that 14 days. That can't be prevented without a server. The first activation has no offline grace. A `#unlock=` link accepts a signed code only. Paste a license key into the box. If validate says this device is gone (HTTP 404 or `instance_id not found`), Pro locks and the page asks you to paste the key. It does not activate by itself. Only **Unlock**, after a paste or submit, can activate. **Deactivate this device** calls the deactivate endpoint and frees one of the 3 activations. **Remove unlock from this browser** and **Clear my data** call deactivate first, then forget this browser. If that call cannot connect, the page says it could not free the slot and lets you remove the copy here anyway.
+
+Get Pro opens the checkout in a new tab. The link adds `locale=en` (Lemon Squeezy `checkout_options.locale`) when the URL does not already set a locale, so the checkout opens in English.
 
 The License API responds with `Access-Control-Allow-Origin: *`, including to `Origin: https://matthew-revell.github.io`, so GitHub Pages can call it directly. No backend is required.
 
@@ -52,7 +54,7 @@ Custom “your words” printables are the Etsy product. Those PDFs are checked,
 
 Owner download names look like `RW-Bingo_<order#>_<N>c_<Letter|A4>.pdf`. They are at most 70 characters and use only letters, digits, periods, underscores, and hyphens. Around 19 MB the owner page warns and can split the set. A marketplace file limit is 20 MB, and at most 5 files.
 
-Owner word lists are one item per line. Commas and semicolons split items when most lines use them, including a trailing newline. A line such as `Snow, Sled, Cocoa, Elf, Mittens` in a mostly one-per-line list stays one square, and the page warns and offers **Split on commas**. Straight quotes, curly double quotes, and curly single quotes that wrap an item keep `"milk, cookies"` as one item. An apostrophe such as Santa’s stays in the word. Picture uploads accept PNG, JPEG, WebP, and HEIC. HEIC is converted in the browser when it can be; otherwise the page explains how to export a JPEG.
+Owner word lists are one item per line. Commas and semicolons split items when most lines use them, including a trailing newline. A line such as `Snow, Sled, Cocoa, Elf, Mittens` in a mostly one-per-line list stays one square, and the page warns and offers **Split on commas**. Straight quotes, curly double quotes, and curly single quotes that wrap an item keep `"milk, cookies"` as one item. An apostrophe such as Santa’s stays in the word. Picture uploads accept PNG, JPEG, WebP, and HEIC. HEIC is converted in the browser when it can be; otherwise the page explains how to export a JPEG. The owner page says pictures can't be checked for QR codes. Etsy listings can't include one.
 
 ## Unlock codes
 
@@ -74,6 +76,10 @@ node tools/make-owner-code.mjs ~/ribbonwren-unlock-PRIVATE.jwk "Matthew" "owner"
 An owner unlock and a Pro unlock are stored in separate browser slots, so accepting one does not erase the other.
 
 Revoke a code by adding its id to `public/revoked.json`.
+
+## Privacy
+
+Word lists, pictures, and unlocks stay in this browser. There is no account and no analytics. A Lemon Squeezy unlock stores the full license key in local storage (`rwb-unlock-pro`), with the instance id and the time of the last successful check. The full key has to stay there so a later visit can validate this device or free its activation. The buyer’s name and email from the license reply are not stored. After a successful unlock the text box is cleared and the page shows only the last four characters. **Clear my data** removes the saved list and the unlock. If this browser’s license slot cannot be freed because the network fails, the list and the key stay until you choose to clear them anyway.
 
 ## Deploy
 

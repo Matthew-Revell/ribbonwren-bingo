@@ -30,7 +30,7 @@ test("makes a word-card PDF and blocks 11 cards on the free tier", async ({ page
   await page.goto("./index.html");
   await expect(page.getByRole("heading", { name: "Ribbonwren Bingo" })).toBeVisible();
   await expect(page.locator("#pro-test-mode")).toHaveText("Test mode");
-  await expect(page.locator("#get-pro")).toHaveAttribute("href", "https://ribbonwren.lemonsqueezy.com/checkout/buy/d376910a-cd10-472a-a1bb-539ca3020be7");
+  await expect(page.locator("#get-pro")).toHaveAttribute("href", "https://ribbonwren.lemonsqueezy.com/checkout/buy/d376910a-cd10-472a-a1bb-539ca3020be7?locale=en");
   await expect(page.locator("#get-pro")).toHaveAttribute("target", "_blank");
   await expect(page.getByText("Pro coming soon")).toHaveCount(0);
   await page.getByRole("button", { name: "Use a sample list" }).click();
@@ -317,6 +317,20 @@ test("counts comma-separated items and warns before printing a sales pitch", asy
   expect(qr.text).toContain("QR code menu");
 });
 
+test("ignores a license key in the unlock link", async ({ page }) => {
+  const key = "38b1460a-5104-4067-a91d-77b872934d51";
+  let hits = 0;
+  await page.route("https://api.lemonsqueezy.com/**", async (route) => {
+    hits += 1;
+    await route.fulfill({ status: 500, json: { error: "should not be called" } });
+  });
+  await page.goto(`./index.html#unlock=${key}`);
+  await expect(page.locator("#unlock-msg")).toContainText("A link can't activate it");
+  await expect(page.locator("#licensed")).toBeHidden();
+  await expect(page).not.toHaveURL(/unlock=/);
+  expect(hits).toBe(0);
+});
+
 test("unlocks a Lemon Squeezy test key and deactivates this device", async ({ page }) => {
   const key = "38b1460a-5104-4067-a91d-77b872934d51";
   const instance = "47596ad9-a811-4ebf-ac8a-03fc7b6d2a17";
@@ -349,6 +363,8 @@ test("unlocks a Lemon Squeezy test key and deactivates this device", async ({ pa
   await page.locator("#unlock-code").fill(key);
   await page.locator("#unlock-button").click();
   await expect(page.locator("#licensed")).toHaveText("Pro unlocked");
+  await expect(page.locator("#unlock-code")).toHaveValue("");
+  await expect(page.locator("#unlock-key-mask")).toHaveText(`Key ending in …${key.slice(-4)}`);
   await expect(page.locator("#card-count")).toHaveAttribute("max", "500");
   await expect(page.getByRole("button", { name: "Deactivate this device" })).toBeVisible();
   const stored = await page.evaluate(() => localStorage.getItem("rwb-unlock-pro"));
@@ -364,6 +380,126 @@ test("unlocks a Lemon Squeezy test key and deactivates this device", async ({ pa
   expect(hits.some((path) => path.endsWith("/deactivate"))).toBe(true);
   const after = await page.evaluate(() => localStorage.getItem("rwb-unlock-pro"));
   expect(after).toBeNull();
+});
+
+function lemonLicense(key, instance) {
+  return {
+    activated: true,
+    valid: true,
+    error: null,
+    license_key: { id: 42, status: "active", key, activation_limit: 3, activation_usage: 1, expires_at: null },
+    instance: { id: instance, name: "Ribbonwren Bingo - browser" },
+    meta: {
+      store_id: 500556,
+      product_id: 1449237,
+      variant_id: 2262220,
+      customer_name: "Sarah Buyer",
+      customer_email: "sarah.buyer@example.com",
+    },
+  };
+}
+
+async function unlockLemon(page, { deactivate = "ok" } = {}) {
+  await page.unrouteAll({ behavior: "ignoreErrors" });
+  const key = "38b1460a-5104-4067-a91d-77b872934d51";
+  const instance = "47596ad9-a811-4ebf-ac8a-03fc7b6d2a17";
+  const hits = [];
+  await page.route("https://api.lemonsqueezy.com/v1/licenses/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    hits.push(path);
+    if (path.endsWith("/deactivate")) {
+      if (deactivate === "offline") {
+        await route.abort("failed");
+        return;
+      }
+      await route.fulfill({ json: { deactivated: true, error: null } });
+      return;
+    }
+    await route.fulfill({ json: lemonLicense(key, instance) });
+  });
+  await page.goto("./index.html");
+  await page.locator("#unlock-code").fill(key);
+  await page.locator("#unlock-button").click();
+  await expect(page.locator("#licensed")).toHaveText("Pro unlocked");
+  return { key, instance, hits };
+}
+
+test("frees the activation slot before removing the unlock", async ({ page }) => {
+  const { hits } = await unlockLemon(page);
+  const before = hits.length;
+  await page.getByRole("button", { name: "Remove unlock from this browser" }).click();
+  await expect(page.locator("#licensed")).toBeHidden();
+  expect(hits.slice(before).some((path) => path.endsWith("/deactivate"))).toBe(true);
+  expect(await page.evaluate(() => localStorage.getItem("rwb-unlock-pro"))).toBeNull();
+  await expect(page.locator("#remove-anyway")).toBeHidden();
+});
+
+test("warns and can still remove the unlock when the slot cannot be freed", async ({ page }) => {
+  await unlockLemon(page, { deactivate: "offline" });
+  await page.getByRole("button", { name: "Remove unlock from this browser" }).click();
+  await expect(page.locator("#unlock-msg")).toHaveText("Couldn't free this device's slot. Try again online, or contact support.");
+  await expect(page.locator("#licensed")).toHaveText("Pro unlocked");
+  expect(await page.evaluate(() => localStorage.getItem("rwb-unlock-pro"))).toContain("47596ad9-a811-4ebf-ac8a-03fc7b6d2a17");
+  await page.getByRole("button", { name: "Remove anyway" }).click();
+  await expect(page.locator("#licensed")).toBeHidden();
+  expect(await page.evaluate(() => localStorage.getItem("rwb-unlock-pro"))).toBeNull();
+});
+
+test("frees the slot before clearing saved data, and can clear anyway when offline", async ({ page }) => {
+  const { hits } = await unlockLemon(page);
+  await page.locator("#words").fill("cocoa\npaper crane");
+  await page.getByRole("button", { name: "Clear my data" }).click();
+  await expect(page.locator("#words")).toHaveValue("");
+  expect(hits.some((path) => path.endsWith("/deactivate"))).toBe(true);
+  expect(await page.evaluate(() => localStorage.getItem("rwb-unlock-pro"))).toBeNull();
+
+  await unlockLemon(page, { deactivate: "offline" });
+  await page.locator("#words").fill("keep me");
+  await page.getByRole("button", { name: "Clear my data" }).click();
+  await expect(page.locator("#unlock-msg")).toHaveText("Couldn't free this device's slot. Try again online, or contact support.");
+  await expect(page.locator("#words")).toHaveValue("keep me");
+  expect(await page.evaluate(() => localStorage.getItem("rwb-unlock-pro"))).not.toBeNull();
+  await page.getByRole("button", { name: "Clear anyway" }).click();
+  await expect(page.locator("#words")).toHaveValue("");
+  await expect(page.locator("#licensed")).toBeHidden();
+  expect(await page.evaluate(() => localStorage.getItem("rwb-unlock-pro"))).toBeNull();
+});
+
+test("relocks a device Lemon Squeezy no longer knows and does not activate it again", async ({ page }) => {
+  const key = "38b1460a-5104-4067-a91d-77b872934d51";
+  const instance = "47596ad9-a811-4ebf-ac8a-03fc7b6d2a17";
+  const hits = [];
+  let validateMissing = false;
+  await page.route("https://api.lemonsqueezy.com/v1/licenses/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    hits.push(path);
+    if (path.endsWith("/validate") && validateMissing) {
+      await route.fulfill({
+        status: 404,
+        contentType: "application/json",
+        body: JSON.stringify({ valid: false, error: "instance_id not found." }),
+      });
+      return;
+    }
+    await route.fulfill({ json: lemonLicense(key, instance) });
+  });
+  await page.goto("./index.html");
+  await page.locator("#unlock-code").fill(key);
+  await page.locator("#unlock-button").click();
+  await expect(page.locator("#licensed")).toHaveText("Pro unlocked");
+  const activations = () => hits.filter((path) => path.endsWith("/activate")).length;
+  const before = activations();
+  validateMissing = true;
+  await page.reload();
+  await expect(page.locator("#unlock-msg")).toHaveText("This device is no longer activated. Paste your license key to activate it again.");
+  await expect(page.locator("#licensed")).toBeHidden();
+  expect(activations()).toBe(before);
+  expect(hits.filter((path) => path.endsWith("/validate")).length).toBeGreaterThan(0);
+  expect(await page.evaluate(() => localStorage.getItem("rwb-unlock-pro"))).toBeNull();
+  await page.locator("#unlock-code").fill(key);
+  await page.locator("#unlock-button").click();
+  await expect(page.locator("#licensed")).toHaveText("Pro unlocked");
+  expect(activations()).toBe(before + 1);
 });
 
 test("accepts a large photo, a WebP, and several pictures", async ({ page }) => {

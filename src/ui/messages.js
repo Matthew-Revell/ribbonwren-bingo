@@ -65,7 +65,8 @@ export function unlockError(reason) {
   if (reason === "lemon-disabled") return "This key is disabled or was refunded, so it can't unlock Pro.";
   if (reason === "lemon-mismatch") return "That key isn't for Ribbonwren Bingo Pro.";
   if (reason === "lemon-network") return "The license check couldn't connect. Check your connection and try again.";
-  if (reason === "lemon-instance") return "This device is no longer activated for that key. Paste the key again.";
+  if (reason === "lemon-instance") return "This device is no longer activated. Paste your license key to activate it again.";
+  if (reason === "lemon-link") return "Paste a license key into Enter unlock code. A link can't activate it.";
   return "This code isn't valid.";
 }
 
@@ -92,6 +93,13 @@ function clip(text) {
 }
 
 export const FREE_FOOTER = "Made free with Ribbonwren Paper Co. · ribbonwren bingo";
+
+export const SLOT_NOT_FREED = "Couldn't free this device's slot. Try again online, or contact support.";
+
+export function maskedKeyLabel(key) {
+  const tail = String(key ?? "").trim().slice(-4);
+  return tail ? `Key ending in …${tail}` : "";
+}
 
 export const PRO_COMING_SOON = "Pro coming soon";
 

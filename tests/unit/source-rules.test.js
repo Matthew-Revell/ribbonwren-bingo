@@ -28,6 +28,20 @@ describe("public copy and privacy boundaries", () => {
     expect(readFileSync("privacy.html", "utf8")).not.toMatch(/etsy/i);
   });
 
+  it("sets a page policy that allows the license API and local files", () => {
+    const policy = "default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self' https://api.lemonsqueezy.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'";
+    for (const page of ["index.html", "help.html", "privacy.html", "owner.html"]) {
+      expect(readFileSync(page, "utf8")).toContain(policy);
+    }
+  });
+
+  it("tells the owner that pictures cannot be checked for QR codes", () => {
+    const owner = readFileSync("owner.html", "utf8");
+    expect(owner).toContain("Pictures can't be checked for QR codes");
+    expect(owner).toMatch(/Etsy listings can't include a QR code/);
+    expect(readFileSync("index.html", "utf8")).not.toContain("can't be checked for QR codes");
+  });
+
   it("keeps checkout and test mode out of the PDF code", () => {
     const pdf = files("src/pdf").map((path) => readFileSync(path, "utf8")).join("\n");
     expect(pdf.toLowerCase()).not.toContain("lemonsqueezy");

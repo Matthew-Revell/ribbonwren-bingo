@@ -11,7 +11,7 @@ import { etsyBlockedMessage, wordingWarning } from "../../src/ui/owner-messages.
 import { recipeError } from "../../src/core/recipe.js";
 import { ALGORITHM } from "../../src/core/rng.js";
 import { buildDeliveryFiles, splitRanges } from "../../src/pdf/split.js";
-import { purchaseHref, siteConfig } from "../../src/config.js";
+import { checkoutHref, purchaseHref, siteConfig } from "../../src/config.js";
 
 const measure = (text, size) => text.length * size * 0.5;
 
@@ -318,7 +318,18 @@ describe("delivery rules", () => {
       variantIds: [2262220],
       mode: "test",
     });
+    const englishCheckout = `${siteConfig.purchaseUrl}?locale=en`;
     expect(purchaseHref()).toBe(siteConfig.purchaseUrl);
+    expect(checkoutHref({ mode: "test", dev: false, search: "" })).toBe(null);
+    expect(checkoutHref({ mode: "test", dev: false, search: "?lstest=0" })).toBe(null);
+    expect(checkoutHref({ mode: "test", dev: true })).toBe(englishCheckout);
+    expect(checkoutHref({ mode: "test", dev: false, search: "?lstest=1" })).toBe(englishCheckout);
+    expect(checkoutHref({ mode: "live", dev: false })).toBe(englishCheckout);
+    expect(checkoutHref({ mode: "live", purchaseUrl: "  " })).toBe(null);
+    expect(checkoutHref({
+      mode: "live",
+      purchaseUrl: `${siteConfig.purchaseUrl}?logo=0&locale=de`,
+    })).toBe(`${siteConfig.purchaseUrl}?logo=0&locale=de`);
     expect(deliveryIssuesIn(["https://example.com", "Upgrade to Pro", "scan the QR"]).length).toBe(3);
     expect(findDeliveryIssues("example.com")).toContain("domain");
     expect(findDeliveryIssues("ribbonwren.com")).toContain("domain");

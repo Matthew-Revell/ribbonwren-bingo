@@ -1,8 +1,9 @@
 /**
  * Lemon Squeezy public License API. No API key.
- * Activate on the first use, then validate the stored instance.
+ * Activate only when the caller sets allowActivate (the Unlock button).
+ * A stored instance is validated and is never activated again on its own.
  * A failed connection can keep Pro unlocked for LEMON_OFFLINE_GRACE_MS
- * after the last successful check. The buyer name and email are not kept.
+ * after the last successful network check. The buyer name and email are not kept.
  */
 import { siteConfig } from "../config.js";
 
@@ -11,6 +12,9 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Last successful check still counts while the browser is offline. */
 export const LEMON_OFFLINE_GRACE_MS = 14 * 24 * 60 * 60 * 1000;
+
+/** A stored time this far ahead can be clock skew. Further ahead is not grace. */
+export const LEMON_CLOCK_SKEW_MS = 5 * 60 * 1000;
 
 function fail(reason) {
   return { ok: false, reason };
@@ -140,11 +144,20 @@ function offlineResult(instanceId, validatedAt) {
   };
 }
 
-function offlineOrNetwork(instanceId, validatedAt, now) {
-  if (instanceId && validatedAt && now - validatedAt <= LEMON_OFFLINE_GRACE_MS) {
-    return offlineResult(instanceId, validatedAt);
-  }
-  return fail("lemon-network");
+function trustedActivation(key, stored) {
+  if (!stored || stored.provider !== "lemonsqueezy") return null;
+  if (!sameLicenseKey(stored.code, key)) return null;
+  if (!isLemonSqueezyKey(stored.instanceId)) return null;
+  return stored;
+}
+
+function offlineOrNetwork(key, stored, now) {
+  const trusted = trustedActivation(key, stored);
+  const validatedAt = Number(trusted?.validatedAt);
+  if (!trusted || !Number.isFinite(validatedAt) || validatedAt <= 0) return fail("lemon-network");
+  if (validatedAt > now + LEMON_CLOCK_SKEW_MS) return fail("lemon-network");
+  if (now - Math.min(validatedAt, now) > LEMON_OFFLINE_GRACE_MS) return fail("lemon-network");
+  return offlineResult(trusted.instanceId, Math.min(validatedAt, now));
 }
 
 export async function verifyLemonSqueezyLicense(key, options = {}) {
@@ -155,17 +168,23 @@ export async function verifyLemonSqueezyLicense(key, options = {}) {
   if (!isLemonSqueezyKey(raw)) return fail("lemon-invalid");
 
   const now = options.now ?? Date.now();
-  const instanceId = options.instanceId || "";
-  const validatedAt = Number(options.validatedAt) || 0;
+  const trusted = trustedActivation(raw, options.stored);
+  const instanceId = trusted?.instanceId || "";
+  if (!instanceId && !options.allowActivate) return fail("lemon-instance");
   const fetchFn = options.fetch || globalThis.fetch;
   const action = instanceId ? "validate" : "activate";
   const fields = instanceId
     ? { license_key: raw, instance_id: instanceId }
     : { license_key: raw, instance_name: instanceName(options) };
   const result = await postLicense(action, fields, fetchFn);
-  if (result.network) return offlineOrNetwork(instanceId, validatedAt, now);
+  if (result.network) return offlineOrNetwork(raw, trusted, now);
 
   const json = result.json;
+  if (action === "validate" && (result.status === 404 || failureReason(json) === "lemon-instance")) {
+    // The device was removed (dashboard, another browser, or a bad id).
+    // Do not spend a new activation. The buyer has to paste the key again.
+    return fail("lemon-instance");
+  }
   if (hasMeta(json.meta) && !metaMatches(json.meta, config)) {
     if (action === "activate" && json.activated === true && json.instance?.id) {
       await postLicense("deactivate", { license_key: raw, instance_id: json.instance.id }, fetchFn);
@@ -177,9 +196,6 @@ export async function verifyLemonSqueezyLicense(key, options = {}) {
   const status = String(json?.license_key?.status || "").toLowerCase();
   if (!accepted || status === "disabled" || status === "expired" || expired(json, now)) {
     const reason = failureReason(json);
-    if (action === "validate" && reason === "lemon-instance" && !options.retried) {
-      return verifyLemonSqueezyLicense(raw, { ...options, instanceId: "", validatedAt: 0, retried: true });
-    }
     if (status === "disabled" || status === "expired" || expired(json, now)) return fail("lemon-disabled");
     return fail(reason);
   }
