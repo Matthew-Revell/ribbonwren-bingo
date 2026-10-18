@@ -5,13 +5,14 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { bytesToB64url, b64urlToBytes } from "../../src/unlock/codec.js";
 import { buildPayload, canonicalPayload, importPrivateKey, signPayload } from "../../src/unlock/sign.js";
-import { PUBLIC_KEY } from "../../src/unlock/public-key.js";
+import { KEY_STATUS, PUBLIC_KEY, verificationKey } from "../../src/unlock/public-key.js";
 import { verifyCode, verifySignedCode } from "../../src/unlock/verify.js";
 import { verifyLemonSqueezyLicense } from "../../src/unlock/lemonsqueezy.js";
 import { ledgerCsv, parseLedger } from "../../src/unlock/ledger.js";
 import { loadUnlock, saveUnlock } from "../../src/unlock/storage.js";
 import {
   TEST_CHECKOUT_ID,
+  TEST_KEY_D,
   TEST_KEY_X,
   TEST_PRODUCT_ID,
   TEST_STORE_ID,
@@ -20,11 +21,20 @@ import {
   distBlockReason,
   liveModeBlockReason,
 } from "../../tools/assert-production-key.mjs";
-import { ownerKeyMismatch } from "../../tools/make-owner-code.mjs";
+import { ownerCodeFromPrivateJwk, ownerKeyMismatch } from "../../tools/make-owner-code.mjs";
 
 const privateJwk = JSON.parse(
   readFileSync(new URL("../fixtures/TEST_DEV_PRIVATE_KEY.json", import.meta.url), "utf8"),
 );
+const testPublicKey = {
+  kty: "EC",
+  crv: "P-256",
+  alg: "ES256",
+  ext: true,
+  key_ops: ["verify"],
+  x: privateJwk.x,
+  y: privateJwk.y,
+};
 
 async function signed(overrides = {}, key = null) {
   const privateKey = key || (await importPrivateKey(privateJwk));
@@ -42,7 +52,8 @@ async function signed(overrides = {}, key = null) {
 describe("verify", () => {
   it("accepts a valid code and rejects tampering, the wrong key, and garbage", async () => {
     const { code, payload } = await signed();
-    const ok = await verifySignedCode(code, { publicKey: PUBLIC_KEY });
+    const ok = await verifySignedCode(code, { publicKey: testPublicKey });
+    expect((await verifySignedCode(code, { publicKey: PUBLIC_KEY })).reason).toBe("signature");
     expect(ok.ok).toBe(true);
     expect(ok.payload.n).toBe("Sarah");
     expect(ok.payload.id).toBe(payload.id);
@@ -51,30 +62,30 @@ describe("verify", () => {
     const parsed = JSON.parse(new TextDecoder().decode(b64urlToBytes(body)));
     parsed.n = "SaraX";
     const tamperedBody = `${bytesToB64url(new TextEncoder().encode(JSON.stringify(canonicalPayload(parsed))))}.${signature}`;
-    expect((await verifySignedCode(tamperedBody, { publicKey: PUBLIC_KEY })).reason).toBe("signature");
+    expect((await verifySignedCode(tamperedBody, { publicKey: testPublicKey })).reason).toBe("signature");
     const tamperedSig = `${body}.${signature.slice(0, -2)}aa`;
-    expect((await verifySignedCode(tamperedSig, { publicKey: PUBLIC_KEY })).reason).toBe("signature");
+    expect((await verifySignedCode(tamperedSig, { publicKey: testPublicKey })).reason).toBe("signature");
 
     const other = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
     const otherJwk = await crypto.subtle.exportKey("jwk", other.privateKey);
     const wrong = await signed({}, await importPrivateKey(otherJwk));
-    expect((await verifySignedCode(wrong.code, { publicKey: PUBLIC_KEY })).reason).toBe("signature");
+    expect((await verifySignedCode(wrong.code, { publicKey: testPublicKey })).reason).toBe("signature");
 
     const future = await signed();
     const futurePayload = { ...future.payload, v: 2 };
     const futureCode = await signPayload(await importPrivateKey(privateJwk), futurePayload);
-    expect((await verifySignedCode(futureCode, { publicKey: PUBLIC_KEY })).reason).toBe("version");
+    expect((await verifySignedCode(futureCode, { publicKey: testPublicKey })).reason).toBe("version");
     const missingId = await signPayload(await importPrivateKey(privateJwk), { ...payload, id: 12 });
-    expect((await verifySignedCode(missingId, { publicKey: PUBLIC_KEY })).reason).toBe("garbage");
+    expect((await verifySignedCode(missingId, { publicKey: testPublicKey })).reason).toBe("garbage");
     const blankId = await signPayload(await importPrivateKey(privateJwk), { ...payload, id: "  " });
-    expect((await verifySignedCode(blankId, { publicKey: PUBLIC_KEY })).reason).toBe("garbage");
-    expect((await verifySignedCode(code, { publicKey: PUBLIC_KEY, revokedIds: ["RW-7K3D9Q"] })).reason).toBe("revoked");
+    expect((await verifySignedCode(blankId, { publicKey: testPublicKey })).reason).toBe("garbage");
+    expect((await verifySignedCode(code, { publicKey: testPublicKey, revokedIds: ["RW-7K3D9Q"] })).reason).toBe("revoked");
 
     for (const bad of ["", "   ", "hello", "@@@.@@@", "a.b.c", "..."]) {
-      const result = await verifyCode(bad, { publicKey: PUBLIC_KEY });
+      const result = await verifyCode(bad, { publicKey: testPublicKey });
       expect(result.ok).toBe(false);
     }
-    expect((await verifyCode("LS-LICENSE", { publicKey: PUBLIC_KEY })).reason).toBe("not-configured");
+    expect((await verifyCode("LS-LICENSE", { publicKey: testPublicKey })).reason).toBe("not-configured");
   });
 
   it("does not call the license API for a signed code or a non-key", async () => {
@@ -89,7 +100,7 @@ describe("verify", () => {
       expect(result).toEqual({ ok: false, reason: "lemon-invalid" });
       const { code } = await signed();
       expect((await verifyCode(code, {
-        publicKey: PUBLIC_KEY,
+        publicKey: testPublicKey,
         externalVerify: verifyLemonSqueezyLicense,
       })).ok).toBe(true);
       expect(calls).toBe(0);
@@ -124,23 +135,34 @@ describe("verify", () => {
     expect(memory.has("rwb-unlock")).toBe(false);
   });
 
-  it("mints an owner code from the private key file", async () => {
-    const out = execFileSync("node", [
-      "tools/make-owner-code.mjs",
-      "tests/fixtures/TEST_DEV_PRIVATE_KEY.json",
-      "Matthew",
-      "owner",
-    ], { encoding: "utf8" });
-    const code = out.trim().split("\n").pop();
-    const result = await verifySignedCode(code, { publicKey: PUBLIC_KEY });
+  it("mints an owner code from the test private key when the test public key is passed", async () => {
+    const minted = await ownerCodeFromPrivateJwk(privateJwk, { name: "Matthew", order: "owner" });
+    const result = await verifySignedCode(minted.code, { publicKey: testPublicKey });
     expect(result.ok).toBe(true);
     expect(result.payload.tier).toBe("owner");
     expect(result.payload.n).toBe("Matthew");
     expect(result.payload.o).toBe("owner");
+    expect((await verifySignedCode(minted.code, { publicKey: PUBLIC_KEY })).reason).toBe("signature");
+    let failed = false;
+    try {
+      execFileSync("node", [
+        "tools/make-owner-code.mjs",
+        "tests/fixtures/TEST_DEV_PRIVATE_KEY.json",
+        "Matthew",
+        "owner",
+      ], { encoding: "utf8" });
+    } catch (error) {
+      failed = true;
+      expect(error.status).toBe(1);
+      expect(String(error.stderr)).toMatch(/does not match the public key/);
+    }
+    expect(failed).toBe(true);
   });
 
   it("refuses a private key that does not match the committed public key", () => {
-    expect(ownerKeyMismatch(privateJwk)).toBe("");
+    expect(ownerKeyMismatch(privateJwk, testPublicKey)).toBe("");
+    expect(ownerKeyMismatch(privateJwk)).toMatch(/does not match/);
+    expect(ownerKeyMismatch({ ...privateJwk, x: PUBLIC_KEY.x, y: PUBLIC_KEY.y })).toBe("");
     expect(ownerKeyMismatch({ ...privateJwk, x: "not-the-committed-key" })).toMatch(/does not match/);
     const dir = mkdtempSync(join(tmpdir(), "rwb-key-"));
     const file = join(dir, "wrong.jwk");
@@ -174,6 +196,10 @@ describe("verify", () => {
     expect(liveModeBlockReason({ ...live, lemonSqueezy: { ...live.lemonSqueezy, mode: "test" } }, TEST_CHECKOUT_ID)).toBe("");
     expect(distBlockReason("var app = {}")).toMatch(/test_mode/);
     expect(distBlockReason("license_key.test_mode")).toBe("");
+    expect(distBlockReason(`license_key.test_mode ${TEST_KEY_X}`)).toMatch(/test public key/);
+    expect(distBlockReason(`license_key.test_mode ${TEST_KEY_D}`)).toMatch(/test private key/);
+    expect(distBlockReason("license_key.test_mode __RWB_TEST_PUBLIC_KEY")).toMatch(/dev test-key hook/);
+    expect(deploymentBlockReason(KEY_STATUS, PUBLIC_KEY)).toBe("");
     expect(distBlockReason(`buy/${TEST_CHECKOUT_ID}`)).toMatch(/test checkout URL/);
     expect(distBlockReason("lstest")).toMatch(/lstest/);
     expect(liveModeBlockReason({
@@ -182,9 +208,23 @@ describe("verify", () => {
     }, "")).toBe("");
   });
 
-  it("publishes a test public key with no private material", () => {
+  it("publishes the production public key and keeps the test private key separate", () => {
+    expect(KEY_STATUS).toBe("production");
     expect(PUBLIC_KEY.d).toBeUndefined();
+    expect(PUBLIC_KEY.key_ops).toEqual(["verify"]);
+    expect(PUBLIC_KEY.x).toBe("xJIUJsnBTcXwoo9qbSHbY6ALH-t_jC3JYc3NxkQVrsU");
+    expect(PUBLIC_KEY.y).toBe("X0wp34CTfiNh3XNhMbyz_pay1a8VG_LHcfmzhRy_AXQ");
+    expect(PUBLIC_KEY.x).not.toBe(TEST_KEY_X);
+    expect(privateJwk.x).toBe(TEST_KEY_X);
+    expect(privateJwk.d).toBe(TEST_KEY_D);
     expect(privateJwk._warning).toMatch(/TEST\/DEV/i);
-    expect(privateJwk.x).toBe(PUBLIC_KEY.x);
+    expect(verificationKey()).toEqual(PUBLIC_KEY);
+    globalThis.__RWB_TEST_PUBLIC_KEY = { ...testPublicKey, d: privateJwk.d };
+    try {
+      expect(verificationKey()).toEqual(testPublicKey);
+      expect(verificationKey().d).toBeUndefined();
+    } finally {
+      delete globalThis.__RWB_TEST_PUBLIC_KEY;
+    }
   });
 });

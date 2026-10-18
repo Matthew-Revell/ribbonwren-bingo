@@ -6,7 +6,7 @@ import { publicPdfFilename } from "./core/filename.js";
 import { buildRecipe, recipeError } from "./core/recipe.js";
 import { makeSeed } from "./core/rng.js";
 import { prepareImageFile, MAX_PICTURES } from "./pdf/images.js";
-import { KEY_STATUS, PUBLIC_KEY } from "./unlock/public-key.js";
+import { KEY_STATUS, verificationKey } from "./unlock/public-key.js";
 import { loadRevokedIds, verifyCode } from "./unlock/verify.js";
 import {
   deactivateLemonSqueezyLicense,
@@ -412,7 +412,7 @@ async function acceptCode(code, { allowActivate = false } = {}) {
   const stored = loadUnlock("pro");
   const revokedIds = await loadRevokedIds(`${import.meta.env.BASE_URL}revoked.json`);
   const result = await verifyCode(trimmed, {
-    publicKey: PUBLIC_KEY,
+    publicKey: verificationKey(),
     revokedIds,
     externalVerify: externalVerify(),
     stored,

@@ -11,7 +11,7 @@ import { deliveryIssuesIn, partitionDeliveryHits } from "./pdf/etsy-safe.js";
 import { prepareImageFile, MAX_PICTURES } from "./pdf/images.js";
 import { buildDeliveryFiles, deliveryWarning } from "./pdf/split.js";
 import { renderLicensePdf } from "./pdf/license.js";
-import { KEY_STATUS, PUBLIC_KEY } from "./unlock/public-key.js";
+import { KEY_STATUS, verificationKey } from "./unlock/public-key.js";
 import { importPrivateKey, signPayload, buildPayload } from "./unlock/sign.js";
 import { loadRevokedIds, verifyCode } from "./unlock/verify.js";
 import { ledgerCsv, parseLedger } from "./unlock/ledger.js";
@@ -469,7 +469,7 @@ async function boot() {
   $("ledger-note").textContent = LEDGER_NOTE;
   async function openOwner(code, { fromLegacy = false, quiet = false } = {}) {
     const revokedIds = await loadRevokedIds(`${import.meta.env.BASE_URL}revoked.json`);
-    const result = await verifyCode(String(code || "").trim(), { publicKey: PUBLIC_KEY, revokedIds });
+    const result = await verifyCode(String(code || "").trim(), { publicKey: verificationKey(), revokedIds });
     if (!result.ok || result.payload.tier !== "owner") {
       if (!quiet) {
         const reason = result.ok ? null : (result.reason === "not-configured" ? "garbage" : result.reason);

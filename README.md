@@ -58,22 +58,17 @@ Owner word lists are one item per line. Commas and semicolons split items when m
 
 ## Unlock codes
 
-A signed code is still checked offline with the public key in `src/unlock/public-key.js`. A UUID license key takes the Lemon Squeezy path above. Owner codes stay on the signed path.
+A signed code is checked offline with the production public key in `src/unlock/public-key.js`. `KEY_STATUS` is `"production"`. Matthew generated that key pair on his own computer. The private key stays with him and is not in this repository. A UUID license key takes the Lemon Squeezy path above. Owner codes stay on the signed path.
 
-The repository includes a **TEST/DEV** key pair so the tests can run. The public page shows a banner while `KEY_STATUS` is not `"production"`. Do not sell codes from this copy.
+`tests/fixtures/TEST_DEV_PRIVATE_KEY.json` is only for tests. Those tests pass that pair's public key into the checker. The public site rejects a code signed with the fixture. A dev server used by the browser tests can be given the same test public key. A production build ignores that hook.
 
-Before any real sale:
-
-1. Run `node tools/make-keys.mjs ~/ribbonwren-unlock-PRIVATE.jwk`. The tool will not write a private key inside this repo. It prints an **owner code** along with the public key. Keep that code with the private key.
-2. Keep that file, and one backup you control. Anyone with it can mint codes.
-3. Replace the public key in `src/unlock/public-key.js` with the key the tool prints, and set `KEY_STATUS` to `"production"`.
-4. Open `owner.html` and paste the owner code (or open the `owner.html#unlock=` link the tool prints). The code maker on that page only makes Pro codes for website sales, and it stays behind the owner gate, so this command is how you get in:
+Mint an owner code with the private key that matches the committed public key. The tool refuses the test fixture.
 
 ```bash
 node tools/make-owner-code.mjs ~/ribbonwren-unlock-PRIVATE.jwk "Matthew" "owner"
 ```
 
-An owner unlock and a Pro unlock are stored in separate browser slots, so accepting one does not erase the other.
+Open `owner.html` and paste that code. The code maker on that page only makes Pro codes for website sales, and it stays behind the owner gate. An owner unlock and a Pro unlock are stored in separate browser slots, so accepting one does not erase the other. To rotate the key pair, run `node tools/make-keys.mjs` with a path outside this repo, then replace `PUBLIC_KEY` with the public key it prints.
 
 Revoke a code by adding its id to `public/revoked.json`.
 
@@ -83,7 +78,7 @@ Word lists, pictures, and unlocks stay in this browser. There is no account and 
 
 ## Deploy
 
-Merging to `main` is the go-live. GitHub Actions runs the tests on pull requests and on `main`. Pages deploy runs only after Tests succeeds for a push to this repository's `main`. A pull request does not deploy, including one from a fork whose branch is named `main`. A manual deploy has to be started from `main`, and it re-runs the tests first. Either way, the deploy stops if `KEY_STATUS` is not `"production"` or the public key is still the committed test key.
+Merging to `main` is the go-live. GitHub Actions runs the tests on pull requests and on `main`. Pages deploy runs only after Tests succeeds for a push to this repository's `main`. A pull request does not deploy, including one from a fork whose branch is named `main`. A manual deploy has to be started from `main`, and it re-runs the tests first. Either way, the deploy stops if `KEY_STATUS` is not `"production"`, if the public key is still the test key, or if `dist/` contains that test key. The committed public key is the production key, so the key check passes. The store mode is still `"test"`.
 
 In the repository settings, set **Pages → Build and deployment → Source** to **GitHub Actions**. Until that is set, the workflow has nowhere to publish. The deploy file takes effect once it is on `main`.
 

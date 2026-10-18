@@ -7,10 +7,11 @@
  * manager or a USB drive). Do not commit it.
  *
  * This tool refuses to write the private key inside the repository.
- * The repo ships a separate, clearly labeled TEST/DEV key pair for unit
- * tests only. That test key is not a production key. Replace
- * src/unlock/public-key.js with the public key this tool prints, and set
- * KEY_STATUS to "production", before any real sale.
+ * src/unlock/public-key.js already holds the production public key.
+ * tests/fixtures/TEST_DEV_PRIVATE_KEY.json is a separate test key. It does
+ * not match that public key, and a production build rejects codes it signs.
+ * To rotate the production key, replace PUBLIC_KEY with the public key this
+ * tool prints and keep KEY_STATUS at "production".
  *
  * Usage:
  *   node tools/make-keys.mjs ~/ribbonwren-unlock-PRIVATE.jwk

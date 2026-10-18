@@ -5,6 +5,25 @@ import { PDFDocument } from "pdf-lib";
 import { buildPayload, importPrivateKey, signPayload } from "../../src/unlock/sign.js";
 
 const privateJwk = JSON.parse(readFileSync(new URL("../fixtures/TEST_DEV_PRIVATE_KEY.json", import.meta.url), "utf8"));
+const testPublicKey = {
+  kty: "EC",
+  crv: "P-256",
+  alg: "ES256",
+  ext: true,
+  key_ops: ["verify"],
+  x: privateJwk.x,
+  y: privateJwk.y,
+};
+
+async function useTestPublicKey(context) {
+  await context.addInitScript((key) => {
+    window.__RWB_TEST_PUBLIC_KEY = key;
+  }, testPublicKey);
+}
+
+test.beforeEach(async ({ context }) => {
+  await useTestPublicKey(context);
+});
 
 async function codeFor(tier, name, order) {
   const key = await importPrivateKey(privateJwk);
@@ -134,11 +153,13 @@ test("unlocks Pro from a link and then removes it", async ({ page }) => {
 test("a fresh window does not keep an unlock", async ({ browser, baseURL }) => {
   const code = await codeFor("pro", "Nora", "1004");
   const first = await browser.newContext({ baseURL });
+  await useTestPublicKey(first);
   const page = await first.newPage();
   await page.goto(`./index.html#unlock=${encodeURIComponent(code)}`);
   await expect(page.locator("#licensed")).toContainText("Licensed to Nora");
   await first.close();
   const second = await browser.newContext({ baseURL });
+  await useTestPublicKey(second);
   const fresh = await second.newPage();
   await fresh.goto("./index.html");
   await expect(fresh.locator("#licensed")).toBeHidden();

@@ -1,25 +1,41 @@
 /**
- * TEST/DEV public key.
+ * Production public key for Ribbonwren Bingo unlock codes.
  *
- * This matches tests/fixtures/TEST_DEV_PRIVATE_KEY.json. Anyone with that
- * file can forge unlock codes. It exists so tests and local owner mode work
- * before launch. It is not a production key.
+ * Matthew generated this key pair on his own computer. The private key stays
+ * with him and is not in this repository. This file can verify a code. It
+ * cannot mint one.
  *
- * Before any real sale, Matthew runs tools/make-keys.mjs, stores the private
- * key outside the repo (and keeps a backup), replaces PUBLIC_KEY below, and
- * sets KEY_STATUS to "production". The tool also prints an owner code. Another
- * one can be made later with tools/make-owner-code.mjs. Do not commit the
- * production private key. Deploy refuses to publish while this file is still
- * the test key.
+ * Tests sign with tests/fixtures/TEST_DEV_PRIVATE_KEY.json and pass that
+ * pair's public key into the checker. A dev server used by those tests can
+ * read the same public key from __RWB_TEST_PUBLIC_KEY. A production build
+ * ignores that hook, so a code signed with the test fixture does not unlock
+ * the public site.
  */
-export const KEY_STATUS = "test-dev";
+export const KEY_STATUS = "production";
 
 export const PUBLIC_KEY = {
   kty: "EC",
   crv: "P-256",
   alg: "ES256",
+  kid: "ribbonwren-bingo-unlock",
   ext: true,
   key_ops: ["verify"],
-  x: "kRbZ057wkFbiHYOovOVljQaT2KDxhAmNRpNdhaiwn4c",
-  y: "aMeBnLYbVNw3hR_x31GN-PqJboqGL6hBUE4gQFel4no",
+  x: "xJIUJsnBTcXwoo9qbSHbY6ALH-t_jC3JYc3NxkQVrsU",
+  y: "X0wp34CTfiNh3XNhMbyz_pay1a8VG_LHcfmzhRy_AXQ",
 };
+
+export function verificationKey() {
+  const override = import.meta.env.DEV ? globalThis.__RWB_TEST_PUBLIC_KEY : null;
+  if (override?.x && override?.y) {
+    return {
+      kty: "EC",
+      crv: "P-256",
+      alg: "ES256",
+      ext: true,
+      key_ops: ["verify"],
+      x: override.x,
+      y: override.y,
+    };
+  }
+  return PUBLIC_KEY;
+}

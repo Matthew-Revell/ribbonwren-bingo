@@ -8,8 +8,8 @@ Recorded against the MVP on this branch. Automated commands were run in this env
 | --- | --- |
 | `npm test` (Vitest: shuffle, cards, limits, unlock, Lemon Squeezy, deploy guard, source rules, PDF) | 79 passed |
 | `npm run test:e2e` | 54 passed |
-| `npm run test:e2e:preview` (built site: no checkout, test-mode key refused, stored test activation dropped, HEIC decoded) | 12 passed |
-| `node tools/assert-production-key.mjs --bundle-only --dist dist` | the test checkout URL and `lstest` are absent, and `test_mode` is present |
+| `npm run test:e2e:preview` (built site: no checkout, test-mode key refused, stored test activation dropped, test-signed code rejected, HEIC decoded) | 15 passed |
+| `node tools/assert-production-key.mjs --dist dist` | the production public key passes, and `dist/` has no test checkout, `lstest`, test key, or dev key hook |
 | `npm run build` | `dist/` produced |
 
 The 100-card Pro download runs in Chromium, Firefox, and WebKit. A call sheet for one card says “1 card”.
@@ -42,10 +42,10 @@ A manual pass of the eight license checks, in Chromium and WebKit, passed except
 These still need a person, on purpose:
 
 - A real printer, at 100% / Actual size, confirming the call-sheet square is 1 inch.
-- A production key, created with `tools/make-keys.mjs` and stored outside the repo, then swapped in before any sale. The committed key is test-only.
+- The production private key. Matthew keeps it outside the repo. The committed file is the matching public key. A code signed with `tests/fixtures/TEST_DEV_PRIVATE_KEY.json` is rejected by the built site.
 - A real HEIC photo from a phone. The suite uploads `tests/fixtures/tiny.heic` on the dev server and on the built site, and a file that is not a real HEIC to check the explanation.
 - A live Lemon Squeezy purchase. The test checkout URL is compiled into dev and `VITE_LS_QA=1` builds only. A normal production build shows “Pro coming soon”, does not link the checkout, and `dist/` must not contain the test checkout URL or `lstest`. That same bundle must still check `license_key.test_mode`. The store, product, and variant ids stay in the bundle because they are the license allowlist. The Pages deploy cannot set `VITE_LS_QA`. Mode `"test"` can still deploy. Unit tests mock the License API. A real test-mode key still has to be bought with card `4242 4242 4242 4242`.
-- The Pages deploy itself. It runs only after Tests succeeds for a push to this repository's `main`. A pull request, including one from a fork whose branch is named `main`, does not deploy. A manual run has to be started from `main`. The job refuses to publish while `KEY_STATUS` is not `"production"`.
+- The Pages deploy itself. It runs only after Tests succeeds for a push to this repository's `main`. A pull request, including one from a fork whose branch is named `main`, does not deploy. A manual run has to be started from `main`. The job refuses to publish while `KEY_STATUS` is not `"production"` or the public key is still the test key. This branch's public key is the production key, so that check passes. Store mode is still `"test"`.
 - The Etsy listing itself, and a manual look at an uploaded custom-order PDF in Etsy’s preview.
 - Lighthouse. Not run in this environment.
 

@@ -12,6 +12,8 @@ import { siteConfig } from "../src/config.js";
 import { KEY_STATUS, PUBLIC_KEY } from "../src/unlock/public-key.js";
 
 export const TEST_KEY_X = "kRbZ057wkFbiHYOovOVljQaT2KDxhAmNRpNdhaiwn4c";
+const testDevPrivate = JSON.parse(readFileSync(new URL("../tests/fixtures/TEST_DEV_PRIVATE_KEY.json", import.meta.url), "utf8"));
+export const TEST_KEY_D = testDevPrivate.d;
 export const TEST_CHECKOUT_ID = "d376910a-cd10-472a-a1bb-539ca3020be7";
 export const TEST_STORE_ID = 500556;
 export const TEST_PRODUCT_ID = 1449237;
@@ -48,6 +50,9 @@ export function distBlockReason(text) {
   const hasCheckout = source.includes(TEST_CHECKOUT_ID);
   if (hasCheckout) problems.push("the test checkout URL");
   if (source.includes("lstest")) problems.push("the lstest flag");
+  if (source.includes(TEST_KEY_X)) problems.push("the test public key");
+  if (TEST_KEY_D && source.includes(TEST_KEY_D)) problems.push("the test private key");
+  if (source.includes("__RWB_TEST_PUBLIC_KEY")) problems.push("the dev test-key hook");
   let message = problems.length ? `The built site still contains ${problems.join(" and ")}.` : "";
   if (!hasCheckout && !source.includes("test_mode")) {
     const missing = "The built site leaves out the test checkout but does not check license_key.test_mode.";

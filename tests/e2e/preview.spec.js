@@ -98,10 +98,56 @@ test("a production build forgets a stored test-mode activation", async ({ page }
   expect(await page.evaluate(() => localStorage.getItem("rwb-unlock-pro"))).toBeNull();
 });
 
-test("a production build decodes a HEIC photo under the page policy", async ({ page }) => {
+test("a production build rejects a code signed with the test key", async ({ page }) => {
   const code = await codeFor("pro", "Sam", "1002");
+  await page.addInitScript((key) => {
+    window.__RWB_TEST_PUBLIC_KEY = key;
+  }, {
+    kty: "EC",
+    crv: "P-256",
+    alg: "ES256",
+    ext: true,
+    key_ops: ["verify"],
+    x: privateJwk.x,
+    y: privateJwk.y,
+  });
   await page.goto(`./index.html#unlock=${encodeURIComponent(code)}`);
-  await expect(page.locator("#licensed")).toContainText("Licensed to Sam");
+  await expect(page.locator("#licensed")).toBeHidden();
+  await expect(page.locator("#unlock-msg")).toHaveText("This code isn't valid.");
+  await page.locator("#unlock-code").fill(code);
+  await page.locator("#unlock-button").click();
+  await expect(page.locator("#licensed")).toBeHidden();
+  await expect(page.locator("#unlock-msg")).toHaveText("This code isn't valid.");
+  await expect(page.locator("#unlock-code")).toHaveValue("");
+});
+
+test("a production build decodes a HEIC photo under the page policy", async ({ page }) => {
+  const key = "38b1460a-5104-4067-a91d-77b872934d51";
+  const instance = "47596ad9-a811-4ebf-ac8a-03fc7b6d2a17";
+  await page.route("https://api.lemonsqueezy.com/v1/licenses/**", async (route) => {
+    await route.fulfill({
+      json: {
+        activated: true,
+        valid: true,
+        error: null,
+        license_key: {
+          id: 42,
+          status: "active",
+          key,
+          test_mode: false,
+          activation_limit: 3,
+          activation_usage: 1,
+          expires_at: null,
+        },
+        instance: { id: instance, name: "Ribbonwren Bingo - browser" },
+        meta: { store_id: 500556, product_id: 1449237, variant_id: 2262220 },
+      },
+    });
+  });
+  await page.goto("./index.html");
+  await page.locator("#unlock-code").fill(key);
+  await page.locator("#unlock-button").click();
+  await expect(page.locator("#licensed")).toHaveText("Pro unlocked");
   await page.getByRole("radio", { name: "Pictures" }).check();
   await page.locator("#picture-input").setInputFiles({
     name: "tiny.heic",
