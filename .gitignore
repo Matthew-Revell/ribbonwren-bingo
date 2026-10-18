@@ -1,0 +1,12 @@
+node_modules/
+dist/
+*.private.*
+keys/
+.DS_Store
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+*.local
+tmp/
+.vite/

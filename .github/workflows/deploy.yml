@@ -1,0 +1,68 @@
+name: Deploy GitHub Pages
+
+# Runs after Tests succeeds for a push to this repo's main, and on a manual
+# run of this repo's main. A push to main does not deploy by itself.
+#
+# workflow_run.branches only matches the head branch name. A pull request from
+# a fork whose branch is also named main would match, then this job would
+# check out that fork's head_sha and publish it with pages:write. The key
+# check is a file from that checkout, so the fork could delete it. The job
+# if below is what actually refuses that run.
+on:
+  workflow_run:
+    workflows: ["Tests"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    # Push to this repository's main only. A fork, a pull request, or any
+    # other branch must not deploy, even when its branch is named main.
+    # Manual runs have to be started from refs/heads/main.
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_repository.full_name == github.repository &&
+        github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install poppler
+        if: github.event_name == 'workflow_dispatch'
+        run: sudo apt-get update && sudo apt-get install -y poppler-utils
+      - run: npm ci
+      - name: Refuse the test signing key
+        run: node tools/assert-production-key.mjs
+      - name: Re-run tests before a manual deploy
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          npm test
+          npx playwright install --with-deps chromium firefox webkit
+          npm run test:e2e
+      - run: npm run build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - id: deployment
+        uses: actions/deploy-pages@v4

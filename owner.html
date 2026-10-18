@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex">
+    <title>Owner · Ribbonwren Bingo</title>
+    <link rel="icon" href="./img/ribbonwren-mark.png">
+    <link rel="stylesheet" href="./src/styles.css">
+  </head>
+  <body>
+    <a class="skip" href="#owner-app">Skip to owner tools</a>
+    <p id="test-key-banner" class="banner" hidden></p>
+    <header class="site-header">
+      <a class="brand" href="./index.html">
+        <img src="./img/ribbonwren-logo-horizontal-outlined.svg" alt="Ribbonwren Paper Co.">
+      </a>
+      <p>Owner tools</p>
+    </header>
+    <main class="wrap">
+      <h1>Owner mode</h1>
+      <section id="owner-gate" class="panel">
+        <h2>Enter the owner code</h2>
+        <p>This page is for making custom word-list printables and website unlock codes. It is not linked from the public pages.</p>
+        <div class="field">
+          <label for="owner-code">Owner code</label>
+          <input id="owner-code" type="text" autocomplete="off" spellcheck="false">
+        </div>
+        <button type="button" id="owner-unlock">Continue</button>
+        <p id="owner-msg" class="field-msg error"></p>
+      </section>
+      <div id="owner-app" hidden>
+        <p class="note" id="turnaround"></p>
+        <p class="note" id="review-note"></p>
+        <div class="layout">
+          <form id="order-form" class="panel">
+            <h2>Custom word list</h2>
+            <div class="grid-2">
+              <div class="field">
+                <label for="order-number">Order number</label>
+                <input id="order-number" type="text" autocomplete="off" spellcheck="false">
+                <p id="order-msg" class="field-msg error"></p>
+              </div>
+              <div class="field">
+                <label for="buyer-name">Buyer first name, optional</label>
+                <input id="buyer-name" type="text" autocomplete="off">
+              </div>
+            </div>
+            <div class="field">
+              <label for="game-title">Card title</label>
+              <input id="game-title" type="text" maxlength="80">
+            </div>
+            <div class="field">
+              <label for="words">Words</label>
+              <textarea id="words"></textarea>
+              <p class="field-msg">One item per line. Commas and semicolons split items when most lines use them. A line that still has commas stays one square until you split it. Straight or curly quotes keep a comma inside one item.</p>
+              <p id="item-count" class="field-msg"></p>
+              <p id="words-msg" class="field-msg error"></p>
+              <button type="button" class="secondary" id="remove-duplicates" hidden>Remove duplicates</button>
+              <button type="button" class="secondary" id="split-commas" hidden>Split on commas</button>
+            </div>
+            <div id="picture-panel">
+              <div class="field">
+                <label for="picture-input">Pictures, optional (PNG, JPEG, WebP, or HEIC)</label>
+                <input id="picture-input" type="file" accept="image/png,image/jpeg,image/webp,image/heic,image/heif,.heic,.heif" multiple>
+              </div>
+              <ul id="picture-list" class="picture-list"></ul>
+              <p id="pictures-msg" class="field-msg error"></p>
+            </div>
+            <fieldset>
+              <legend>Grid</legend>
+              <div class="choice-row">
+                <label class="choice"><input type="radio" name="grid" value="3"> 3×3</label>
+                <label class="choice"><input type="radio" name="grid" value="4"> 4×4</label>
+                <label class="choice"><input type="radio" name="grid" value="5" checked> 5×5</label>
+              </div>
+              <label class="choice"><input id="free-space" type="checkbox" checked> Free space in the center</label>
+              <div class="field">
+                <label for="free-text">Free space text</label>
+                <input id="free-text" type="text" value="FREE">
+              </div>
+            </fieldset>
+            <div class="grid-2">
+              <div class="field">
+                <label for="card-count">Number of cards</label>
+                <input id="card-count" type="number" min="1" max="500" step="1" value="10">
+                <p id="card-count-msg" class="field-msg error"></p>
+              </div>
+              <div class="field">
+                <label for="seed">Seed</label>
+                <input id="seed" type="text" autocomplete="off">
+                <p id="seed-msg" class="field-msg error"></p>
+              </div>
+            </div>
+            <div class="grid-2">
+              <div class="field">
+                <label for="page-size">Page size</label>
+                <select id="page-size">
+                  <option value="letter">US Letter</option>
+                  <option value="a4">A4</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="per-page">Cards per page</label>
+                <select id="per-page">
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                </select>
+              </div>
+            </div>
+            <div class="grid-2">
+              <div class="field">
+                <label for="theme">Theme</label>
+                <select id="theme">
+                  <option value="everyday">Everyday</option>
+                  <option value="christmas">Christmas</option>
+                </select>
+              </div>
+              <div class="checks">
+                <label class="choice"><input id="ink-saver" type="checkbox"> Ink-saver</label>
+                <label class="choice"><input id="bingo-letters" type="checkbox" checked> BINGO letters on 5×5</label>
+                <label class="choice"><input id="good-luck" type="checkbox" checked> “Good luck!” line</label>
+              </div>
+            </div>
+            <div id="form-messages" class="messages" aria-live="polite"></div>
+            <p id="wording-warning" class="warning" hidden></p>
+            <div id="wording-row" hidden>
+              <label class="choice" for="wording-override"><input id="wording-override" type="checkbox"> Print these words anyway</label>
+            </div>
+            <div id="size-warning" class="note" hidden></div>
+            <div class="actions">
+              <button type="submit" id="make-pdf">Make PDF</button>
+              <button type="button" class="secondary" id="download-anyway" hidden>Download the large file anyway</button>
+              <button type="button" class="secondary" id="split-files" hidden>Split into smaller files</button>
+              <button type="button" class="secondary" id="save-recipe">Save recipe</button>
+              <label class="button secondary">Load recipe
+                <input id="load-recipe" type="file" accept="application/json,.json" hidden>
+              </label>
+            </div>
+            <p id="order-status" role="status"></p>
+          </form>
+          <aside class="preview-card">
+            <h2>Card 1</h2>
+            <div id="preview"></div>
+          </aside>
+        </div>
+        <section class="panel" id="code-maker">
+          <h2>Website unlock codes</h2>
+          <p id="key-note"></p>
+          <p id="license-note"></p>
+          <div class="field">
+            <label for="key-file">Private key file</label>
+            <input id="key-file" type="file" accept="application/json,.json,.jwk">
+          </div>
+          <p id="key-status" role="status">No key loaded.</p>
+          <div class="grid-2">
+            <div class="field">
+              <label for="code-name">Buyer first name</label>
+              <input id="code-name" type="text" autocomplete="off">
+            </div>
+            <div class="field">
+              <label for="code-order">Order reference</label>
+              <input id="code-order" type="text" autocomplete="off">
+            </div>
+          </div>
+          <div class="actions">
+            <button type="button" id="make-code">Make code</button>
+            <button type="button" class="secondary" id="download-license" hidden>Download license PDF</button>
+            <button type="button" class="secondary" id="download-ledger">Download ledger</button>
+            <button type="button" class="quiet" id="remove-key">Remove key</button>
+          </div>
+          <p id="ledger-note"></p>
+          <div class="field">
+            <label for="ledger-file">Add an older ledger (optional)</label>
+            <input id="ledger-file" type="file" accept="text/csv,.csv">
+          </div>
+          <p id="code-msg" class="field-msg error"></p>
+          <p id="code-link"></p>
+          <p id="code-plain"></p>
+        </section>
+      </div>
+    </main>
+    <script type="module" src="./src/owner.js"></script>
+  </body>
+</html>

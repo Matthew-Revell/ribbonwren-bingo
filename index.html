@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Ribbonwren Bingo</title>
+    <meta name="description" content="Make printable bingo cards from your own word list. The cards are built in your browser. Nothing is uploaded.">
+    <meta property="og:title" content="Ribbonwren Bingo">
+    <meta property="og:description" content="Printable bingo cards from your own word list, in the Ribbonwren paper style.">
+    <meta property="og:image" content="https://matthew-revell.github.io/ribbonwren-bingo/img/og.png">
+    <meta property="og:type" content="website">
+    <link rel="icon" href="./img/ribbonwren-mark.png">
+    <link rel="stylesheet" href="./src/styles.css">
+  </head>
+  <body>
+    <a class="skip" href="#game-form">Skip to the card form</a>
+    <p id="test-key-banner" class="banner" hidden></p>
+    <header class="site-header">
+      <a class="brand" href="./index.html">
+        <img src="./img/ribbonwren-logo-horizontal-outlined.svg" alt="Ribbonwren Paper Co.">
+      </a>
+      <nav class="nav" aria-label="Pages">
+        <a href="./help.html">Help</a>
+        <a href="./privacy.html">Privacy</a>
+      </nav>
+    </header>
+    <main class="wrap">
+      <p class="tagline">Cozy all year, merry when it counts.</p>
+      <h1>Ribbonwren Bingo</h1>
+      <p class="lede">Paste a list, pick a grid, and download printable cards plus a call sheet. The PDF is made on this device. There is no account.</p>
+      <div id="pro-offer" class="pro-note"></div>
+      <p id="licensed" class="status-pill" hidden></p>
+      <div class="layout">
+        <form id="game-form" class="panel">
+          <div class="field">
+            <label for="game-title">Card title</label>
+            <input id="game-title" name="title" type="text" maxlength="80" placeholder="Office holiday bingo" autocomplete="off">
+          </div>
+          <fieldset>
+            <legend>What goes in the squares</legend>
+            <div class="choice-row">
+              <label class="choice"><input type="radio" name="mode" value="words" checked> Words</label>
+              <label class="choice"><input id="mode-pictures" type="radio" name="mode" value="pictures"> Pictures</label>
+            </div>
+          </fieldset>
+          <div class="field" id="words-field">
+            <label for="words">Words, one per line</label>
+            <textarea id="words" name="words" spellcheck="true"></textarea>
+            <p id="words-msg" class="field-msg error"></p>
+            <div class="actions">
+              <button type="button" class="secondary" id="sample-list">Use a sample list</button>
+              <button type="button" class="secondary" id="remove-duplicates" hidden>Remove duplicates</button>
+            </div>
+          </div>
+          <div id="picture-panel" hidden>
+            <p id="picture-lock"></p>
+            <div class="field">
+              <label for="picture-input">Pictures (PNG, JPEG, WebP, or HEIC)</label>
+              <input id="picture-input" type="file" accept="image/png,image/jpeg,image/webp,image/heic,image/heif,.heic,.heif" multiple>
+            </div>
+            <ul id="picture-list" class="picture-list"></ul>
+            <p id="pictures-msg" class="field-msg error"></p>
+          </div>
+          <fieldset>
+            <legend>Grid</legend>
+            <div class="choice-row">
+              <label class="choice"><input type="radio" name="grid" value="3"> 3×3</label>
+              <label class="choice"><input type="radio" name="grid" value="4"> 4×4</label>
+              <label class="choice"><input type="radio" name="grid" value="5" checked> 5×5</label>
+            </div>
+            <label class="choice">
+              <input id="free-space" type="checkbox" checked>
+              Free space in the center
+            </label>
+            <div class="field">
+              <label for="free-text">Free space text</label>
+              <input id="free-text" type="text" value="FREE" maxlength="24">
+            </div>
+            <p id="free-space-msg" class="field-msg error"></p>
+          </fieldset>
+          <div class="grid-2">
+            <div class="field">
+              <label for="card-count">Number of cards</label>
+              <input id="card-count" type="number" inputmode="numeric" min="1" max="10" step="1" value="8">
+              <p id="card-count-msg" class="field-msg error"></p>
+            </div>
+            <div class="field">
+              <label for="seed">Seed</label>
+              <input id="seed" type="text" autocomplete="off" spellcheck="false">
+              <p id="seed-msg" class="field-msg error"></p>
+            </div>
+          </div>
+          <div class="actions">
+            <button type="button" class="secondary" id="new-seed">New seed</button>
+          </div>
+          <div class="grid-2">
+            <div class="field">
+              <label for="page-size">Page size</label>
+              <select id="page-size">
+                <option value="letter">US Letter</option>
+                <option value="a4">A4</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="per-page">Cards per page</label>
+              <select id="per-page">
+                <option value="1">1</option>
+                <option value="2">2</option>
+              </select>
+            </div>
+          </div>
+          <div class="grid-2">
+            <div class="field">
+              <label for="theme">Theme</label>
+              <select id="theme">
+                <option value="everyday">Everyday</option>
+                <option value="christmas">Christmas</option>
+              </select>
+            </div>
+            <div class="checks">
+              <label class="choice"><input id="ink-saver" type="checkbox"> Ink-saver</label>
+              <label class="choice"><input id="bingo-letters" type="checkbox" checked> BINGO letters on 5×5</label>
+              <label class="choice"><input id="good-luck" type="checkbox" checked> “Good luck!” line</label>
+            </div>
+          </div>
+          <div id="form-messages" class="messages" aria-live="polite"></div>
+          <div id="progress-wrap" hidden>
+            <label for="progress">Making the PDF</label>
+            <progress id="progress" max="100" value="0"></progress>
+            <span id="progress-label"></span>
+          </div>
+          <div class="actions">
+            <button type="submit" id="download">Download PDF</button>
+            <button type="button" class="secondary" id="save-game">Save game</button>
+            <label class="button secondary">Load game
+              <input id="load-game" type="file" accept="application/json,.json" hidden>
+            </label>
+          </div>
+          <p id="download-status" role="status"></p>
+          <p id="open-pdf" hidden><a id="open-pdf-link" target="_blank" rel="noopener">Open the PDF</a> if the download did not start.</p>
+          <fieldset>
+            <legend>Unlock code</legend>
+            <div class="field">
+              <label for="unlock-code">Paste a code</label>
+              <input id="unlock-code" type="text" autocomplete="off" spellcheck="false">
+            </div>
+            <div class="actions">
+              <button type="button" class="secondary" id="unlock-button">Unlock</button>
+              <button type="button" class="quiet" id="remove-unlock">Remove unlock from this browser</button>
+            </div>
+            <p id="unlock-msg" class="field-msg error"></p>
+          </fieldset>
+        </form>
+        <aside class="preview-card" aria-labelledby="preview-heading">
+          <h2 id="preview-heading">Card 1</h2>
+          <div id="preview"></div>
+          <p id="emoji-note" hidden></p>
+        </aside>
+      </div>
+    </main>
+    <footer class="site-footer">
+      <p>Words and pictures stay in this browser. No account, no email.</p>
+      <button type="button" class="quiet" id="clear-data">Clear my data</button>
+    </footer>
+    <script type="module" src="./src/main.js"></script>
+    <noscript><p class="wrap">Ribbonwren Bingo builds the PDF in your browser and needs JavaScript.</p></noscript>
+  </body>
+</html>

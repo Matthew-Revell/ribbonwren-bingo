@@ -1,0 +1,83 @@
+{
+  "algorithm": "rwb-v1",
+  "items": [
+    "cocoa",
+    "paper crane",
+    "wool blanket",
+    "river stone",
+    "library card",
+    "sunday walk",
+    "honey toast",
+    "ceramic mug"
+  ],
+  "settings": "g3f0",
+  "listHash": "05aaab664fd9ff3d5bf3ba748d47e3b1",
+  "cards": {
+    "KJ4P-92": [
+      [
+        "library card",
+        "ceramic mug",
+        "river stone",
+        "cocoa",
+        "sunday walk",
+        "paper crane",
+        "wool blanket",
+        "honey toast"
+      ],
+      [
+        "wool blanket",
+        "honey toast",
+        "library card",
+        "ceramic mug",
+        "sunday walk",
+        "cocoa",
+        "river stone",
+        "paper crane"
+      ]
+    ],
+    "ABCD-EF": [
+      [
+        "paper crane",
+        "honey toast",
+        "library card",
+        "sunday walk",
+        "wool blanket",
+        "river stone",
+        "ceramic mug",
+        "cocoa"
+      ],
+      [
+        "wool blanket",
+        "library card",
+        "ceramic mug",
+        "honey toast",
+        "cocoa",
+        "paper crane",
+        "sunday walk",
+        "river stone"
+      ]
+    ],
+    "7K3D-9Q": [
+      [
+        "paper crane",
+        "honey toast",
+        "cocoa",
+        "library card",
+        "sunday walk",
+        "river stone",
+        "ceramic mug",
+        "wool blanket"
+      ],
+      [
+        "honey toast",
+        "river stone",
+        "sunday walk",
+        "wool blanket",
+        "ceramic mug",
+        "paper crane",
+        "cocoa",
+        "library card"
+      ]
+    ]
+  }
+}
