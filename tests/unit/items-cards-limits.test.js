@@ -100,6 +100,19 @@ describe("parseItems", () => {
     expect(warned.warnings.map((warning) => warning.code)).toContain("comma-item");
   });
 
+  it("does not let a later curly quote close an earlier apostrophe", () => {
+    expect(parseItems("\u2018tis the season, cocoa, \u2018milk, cookies\u2019", { mode: "auto" }).items).toEqual([
+      "\u2018tis the season",
+      "cocoa",
+      "milk, cookies",
+    ]);
+    expect(forceSplitDelimiters("\u2018tis the season, cocoa, \u2018milk, cookies\u2019").split("\n")).toEqual([
+      "\u2018tis the season",
+      "cocoa",
+      "milk, cookies",
+    ]);
+  });
+
   it("warns when a mostly line-based list still has a comma line", () => {
     const raw = ["cocoa", "Snow, Sled, Cocoa, Elf, Mittens", "paper"].join("\n");
     const parsed = parseItems(raw, { mode: "auto" });
