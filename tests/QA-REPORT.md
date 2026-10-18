@@ -6,8 +6,10 @@ Recorded against the MVP on this branch. Automated commands were run in this env
 
 | Check | Result |
 | --- | --- |
-| `npm test` (Vitest: shuffle, cards, limits, unlock, Lemon Squeezy, deploy guard, source rules, PDF) | 76 passed |
+| `npm test` (Vitest: shuffle, cards, limits, unlock, Lemon Squeezy, deploy guard, source rules, PDF) | 78 passed |
 | `npm run test:e2e` | 54 passed |
+| `npm run test:e2e:preview` (built site, `?lstest=1` shows no checkout) | 3 passed |
+| `node tools/assert-production-key.mjs --bundle-only --dist dist` | the test checkout URL and `lstest` are absent |
 | `npm run build` | `dist/` produced |
 
 The 100-card Pro download runs in Chromium, Firefox, and WebKit. A call sheet for one card says “1 card”.
@@ -33,7 +35,7 @@ A manual pass of the eight license checks, in Chromium and WebKit, passed except
 - Remove unlock and Clear my data now call deactivate before they forget a Lemon Squeezy unlock. If that call cannot connect, the page warns and offers Remove anyway or Clear anyway.
 - A validate response of 404 or `instance_id not found` locks Pro, drops the stored instance, and asks for the key again. The page does not activate on its own.
 - Offline grace rejects a `validatedAt` more than five minutes ahead, including one year ahead, and stays capped at 14 days from the last successful network check.
-- After a successful unlock the box is cleared and the page shows the last four characters of the key. Get Pro adds `locale=en`. The full key remains in local storage; that is noted under Privacy in the README.
+- After a successful unlock the box is cleared and the page shows the last four characters of the key. Checkout language is set in the Lemon Squeezy dashboard. The full key remains in local storage; that is noted under Privacy in the README.
 
 ## Not automated
 
@@ -42,7 +44,7 @@ These still need a person, on purpose:
 - A real printer, at 100% / Actual size, confirming the call-sheet square is 1 inch.
 - A production key, created with `tools/make-keys.mjs` and stored outside the repo, then swapped in before any sale. The committed key is test-only.
 - A real HEIC photo from a phone. The suite uploads a file that is not a real HEIC and checks the explanation. The page policy blocks the HEIC library’s dynamic code, so a photo the browser itself cannot decode gets that explanation. `heic2any` stays bundled for a browser that allows it.
-- A live Lemon Squeezy purchase. The checkout URL and test store ids are in `src/config.js`. While `mode` is `"test"`, the public site shows “Pro coming soon” and does not link the checkout. A dev build or `?lstest=1` shows it for QA. Unit tests mock the License API. A real test-mode key still has to be bought with card `4242 4242 4242 4242`.
+- A live Lemon Squeezy purchase. The test checkout URL is compiled into dev and `VITE_LS_QA=1` builds only. A normal production build shows “Pro coming soon”, does not link the checkout, and `dist/` must not contain the test checkout URL or `lstest`. The Pages deploy cannot set `VITE_LS_QA`. A live store rejects `license_key.test_mode`. Unit tests mock the License API. A real test-mode key still has to be bought with card `4242 4242 4242 4242`.
 - The Pages deploy itself. It runs only after Tests succeeds for a push to this repository's `main`. A pull request, including one from a fork whose branch is named `main`, does not deploy. A manual run has to be started from `main`. The job refuses to publish while `KEY_STATUS` is not `"production"`.
 - The Etsy listing itself, and a manual look at an uploaded custom-order PDF in Etsy’s preview.
 - Lighthouse. Not run in this environment.

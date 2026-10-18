@@ -13,6 +13,7 @@
     "fonts": "python3 tools/make-static-fonts.py",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:e2e:preview": "playwright test -c playwright.preview.config.js",
     "test:all": "vitest run && playwright test"
   },
   "dependencies": {

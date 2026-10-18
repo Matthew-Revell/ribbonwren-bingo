@@ -1,13 +1,21 @@
 #!/usr/bin/env node
 /**
- * Stop a Pages deploy while the site still trusts the TEST/DEV signing key.
+ * Stop a Pages deploy while the site still trusts the TEST/DEV signing key,
+ * while live mode still points at the test store, or while the built files
+ * still contain the test checkout.
  * Anyone with the committed test private key can forge unlock codes.
  */
-import { resolve } from "node:path";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { siteConfig } from "../src/config.js";
 import { KEY_STATUS, PUBLIC_KEY } from "../src/unlock/public-key.js";
 
 export const TEST_KEY_X = "kRbZ057wkFbiHYOovOVljQaT2KDxhAmNRpNdhaiwn4c";
+export const TEST_CHECKOUT_ID = "d376910a-cd10-472a-a1bb-539ca3020be7";
+export const TEST_STORE_ID = 500556;
+export const TEST_PRODUCT_ID = 1449237;
+export const TEST_VARIANT_ID = 2262220;
 
 export function deploymentBlockReason(status, publicKey) {
   if (status !== "production") {
@@ -22,11 +30,62 @@ export function deploymentBlockReason(status, publicKey) {
   return "";
 }
 
+export function liveModeBlockReason(config, configSource = "") {
+  if (config?.lemonSqueezy?.mode !== "live") return "";
+  const problems = [];
+  const store = config.lemonSqueezy;
+  if (Number(store?.storeId) === TEST_STORE_ID) problems.push("test store id");
+  if (Number(store?.productId) === TEST_PRODUCT_ID) problems.push("test product id");
+  if ((store?.variantIds || []).map(Number).includes(TEST_VARIANT_ID)) problems.push("test variant id");
+  if (`${config.purchaseUrl || ""}\n${configSource}`.includes(TEST_CHECKOUT_ID)) problems.push("test checkout URL");
+  if (!problems.length) return "";
+  return `lemonSqueezy.mode is "live" but this build still has the ${problems.join(", ")}. Replace the test store values before deploying.`;
+}
+
+export function distBlockReason(text) {
+  const hits = [];
+  const source = String(text || "");
+  if (source.includes(TEST_CHECKOUT_ID)) hits.push("the test checkout URL");
+  if (source.includes("lstest")) hits.push("the lstest flag");
+  if (!hits.length) return "";
+  return `The built site still contains ${hits.join(" and ")}.`;
+}
+
+function readDist(dir) {
+  let text = "";
+  function walk(current) {
+    for (const name of readdirSync(current)) {
+      const path = join(current, name);
+      if (statSync(path).isDirectory()) walk(path);
+      else if (/\.(js|html|css|map|json)$/.test(name)) text += `\n${readFileSync(path, "utf8")}`;
+    }
+  }
+  walk(dir);
+  return text;
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  const reason = deploymentBlockReason(KEY_STATUS, PUBLIC_KEY);
-  if (reason) {
-    console.error(reason);
+  const bundleOnly = process.argv.includes("--bundle-only");
+  const distFlag = process.argv.indexOf("--dist");
+  const distDir = distFlag === -1 ? "" : process.argv[distFlag + 1];
+  const reasons = [];
+  if (!bundleOnly) {
+    const key = deploymentBlockReason(KEY_STATUS, PUBLIC_KEY);
+    if (key) reasons.push(key);
+    const configSource = readFileSync(new URL("../src/config.js", import.meta.url), "utf8");
+    const live = liveModeBlockReason(siteConfig, configSource);
+    if (live) reasons.push(live);
+  }
+  if (bundleOnly && !distDir) {
+    reasons.push("Pass --dist with the built site directory.");
+  }
+  if (distDir) reasons.push(distBlockReason(readDist(distDir)));
+  const blocked = reasons.filter(Boolean);
+  if (blocked.length) {
+    console.error(blocked.join("\n"));
     process.exit(1);
   }
-  console.log('KEY_STATUS is "production" and the public key is not the test key.');
+  console.log(bundleOnly
+    ? "The production bundle does not contain the test checkout."
+    : 'KEY_STATUS is "production" and the public key is not the test key.');
 }

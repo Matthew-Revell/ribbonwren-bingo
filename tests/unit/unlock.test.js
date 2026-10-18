@@ -10,7 +10,16 @@ import { verifyCode, verifySignedCode } from "../../src/unlock/verify.js";
 import { verifyLemonSqueezyLicense } from "../../src/unlock/lemonsqueezy.js";
 import { ledgerCsv, parseLedger } from "../../src/unlock/ledger.js";
 import { loadUnlock, saveUnlock } from "../../src/unlock/storage.js";
-import { TEST_KEY_X, deploymentBlockReason } from "../../tools/assert-production-key.mjs";
+import {
+  TEST_CHECKOUT_ID,
+  TEST_KEY_X,
+  TEST_PRODUCT_ID,
+  TEST_STORE_ID,
+  TEST_VARIANT_ID,
+  deploymentBlockReason,
+  distBlockReason,
+  liveModeBlockReason,
+} from "../../tools/assert-production-key.mjs";
 import { ownerKeyMismatch } from "../../tools/make-owner-code.mjs";
 
 const privateJwk = JSON.parse(
@@ -152,6 +161,20 @@ describe("verify", () => {
     expect(deploymentBlockReason("production", { x: TEST_KEY_X })).toMatch(/TEST\/DEV/);
     expect(deploymentBlockReason("production", { x: "a-real-key", d: "secret" })).toMatch(/private/);
     expect(deploymentBlockReason("production", { x: "a-real-key" })).toBe("");
+    const live = {
+      purchaseUrl: "https://example.test/checkout/buy/live",
+      lemonSqueezy: { mode: "live", storeId: 1, productId: 2, variantIds: [3] },
+    };
+    expect(liveModeBlockReason(live, "mode: \"live\"")).toBe("");
+    expect(liveModeBlockReason({
+      ...live,
+      lemonSqueezy: { ...live.lemonSqueezy, storeId: TEST_STORE_ID, productId: TEST_PRODUCT_ID, variantIds: [TEST_VARIANT_ID] },
+    }, "")).toMatch(/test store id/);
+    expect(liveModeBlockReason(live, `checkout ${TEST_CHECKOUT_ID}`)).toMatch(/test checkout URL/);
+    expect(liveModeBlockReason({ ...live, lemonSqueezy: { ...live.lemonSqueezy, mode: "test" } }, TEST_CHECKOUT_ID)).toBe("");
+    expect(distBlockReason("var app = {}")).toBe("");
+    expect(distBlockReason(`buy/${TEST_CHECKOUT_ID}`)).toMatch(/test checkout URL/);
+    expect(distBlockReason("lstest")).toMatch(/lstest/);
   });
 
   it("publishes a test public key with no private material", () => {

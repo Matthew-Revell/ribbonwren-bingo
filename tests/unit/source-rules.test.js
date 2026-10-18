@@ -29,9 +29,14 @@ describe("public copy and privacy boundaries", () => {
   });
 
   it("sets a page policy that allows the license API and local files", () => {
-    const policy = "default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self' https://api.lemonsqueezy.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'";
-    for (const page of ["index.html", "help.html", "privacy.html", "owner.html"]) {
-      expect(readFileSync(page, "utf8")).toContain(policy);
+    const shared = "default-src 'self'; script-src 'self'";
+    const rest = "; style-src 'self'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self' https://api.lemonsqueezy.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'";
+    for (const page of ["help.html", "privacy.html"]) {
+      expect(readFileSync(page, "utf8")).toContain(`${shared}${rest}`);
+      expect(readFileSync(page, "utf8")).not.toContain("unsafe-eval");
+    }
+    for (const page of ["index.html", "owner.html"]) {
+      expect(readFileSync(page, "utf8")).toContain(`${shared} 'unsafe-eval'${rest}`);
     }
   });
 
@@ -40,6 +45,15 @@ describe("public copy and privacy boundaries", () => {
     expect(owner).toContain("Pictures can't be checked for QR codes");
     expect(owner).toMatch(/Etsy listings can't include a QR code/);
     expect(readFileSync("index.html", "utf8")).not.toContain("can't be checked for QR codes");
+  });
+
+  it("does not let the public deploy turn on the test checkout", () => {
+    const deploy = readFileSync(".github/workflows/deploy.yml", "utf8");
+    const vite = readFileSync("vite.config.js", "utf8");
+    expect(deploy).toContain('VITE_LS_QA: ""');
+    expect(deploy).not.toMatch(/VITE_LS_QA:\s*"1"/);
+    expect(vite).toContain("Deploy GitHub Pages");
+    expect(vite).toContain("VITE_LS_QA");
   });
 
   it("keeps checkout and test mode out of the PDF code", () => {

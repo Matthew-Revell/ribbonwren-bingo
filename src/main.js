@@ -106,14 +106,14 @@ function showMessages(result) {
 function renderProOffer() {
   const offer = $("pro-offer");
   offer.replaceChildren();
-  if (siteConfig.lemonSqueezy?.mode === "test") {
+  const href = checkoutHref({ dev: import.meta.env.DEV, search: location.search });
+  if (href && siteConfig.lemonSqueezy?.mode === "test") {
     const marker = document.createElement("p");
     marker.className = "test-mode";
     marker.id = "pro-test-mode";
     marker.textContent = "Test mode";
     offer.append(marker);
   }
-  const href = checkoutHref({ dev: import.meta.env.DEV, search: location.search });
   if (href) {
     const link = document.createElement("a");
     link.className = "button";

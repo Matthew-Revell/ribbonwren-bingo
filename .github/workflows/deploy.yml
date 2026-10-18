@@ -60,7 +60,14 @@ jobs:
           npm test
           npx playwright install --with-deps chromium firefox webkit
           npm run test:e2e
-      - run: npm run build
+      - name: Build the public site
+        # Clear the QA switch. vite.config.js also forces it off for this
+        # workflow, so a repository variable cannot bake the test checkout in.
+        env:
+          VITE_LS_QA: ""
+        run: npm run build
+      - name: Refuse a bundle that still contains the test checkout
+        run: node tools/assert-production-key.mjs --dist dist
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

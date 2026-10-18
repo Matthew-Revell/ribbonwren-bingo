@@ -74,6 +74,8 @@ describe("parseItems", () => {
     expect(parseItems("tea, \u2018milk, cookies\u2019, cocoa", { mode: "auto" }).items).toEqual(["tea", "milk, cookies", "cocoa"]);
     expect(parseItems("\u2018Santa\u2019s list, cookies\u2019", { mode: "auto" }).items).toEqual(["Santa\u2019s list, cookies"]);
     expect(parseItems("Santa\u2019s hat\ncocoa", { mode: "auto" }).items).toEqual(["Santa\u2019s hat", "cocoa"]);
+    expect(parseItems("rock \u2018n\u2019 roll, cocoa", { mode: "auto" }).items).toEqual(["rock \u2018n\u2019 roll", "cocoa"]);
+    expect(parseItems("Mom\u2018s cocoa, Santa", { mode: "auto" }).items).toEqual(["Mom\u2018s cocoa", "Santa"]);
   });
 
   it("warns when a mostly line-based list still has a comma line", () => {
@@ -318,18 +320,19 @@ describe("delivery rules", () => {
       variantIds: [2262220],
       mode: "test",
     });
-    const englishCheckout = `${siteConfig.purchaseUrl}?locale=en`;
-    expect(purchaseHref()).toBe(siteConfig.purchaseUrl);
+    const checkout = siteConfig.purchaseUrl;
+    expect(checkout).toContain("d376910a-cd10-472a-a1bb-539ca3020be7");
+    expect(purchaseHref()).toBe(checkout);
     expect(checkoutHref({ mode: "test", dev: false, search: "" })).toBe(null);
     expect(checkoutHref({ mode: "test", dev: false, search: "?lstest=0" })).toBe(null);
-    expect(checkoutHref({ mode: "test", dev: true })).toBe(englishCheckout);
-    expect(checkoutHref({ mode: "test", dev: false, search: "?lstest=1" })).toBe(englishCheckout);
-    expect(checkoutHref({ mode: "live", dev: false })).toBe(englishCheckout);
+    expect(checkoutHref({ mode: "test", dev: true })).toBe(checkout);
+    expect(checkoutHref({ mode: "test", dev: false, search: "?lstest=1" })).toBe(null);
+    expect(checkoutHref({ mode: "test", dev: true, search: "?lstest=1" })).toBe(checkout);
+    expect(checkoutHref({ mode: "test", dev: false, search: "?lstest=1", qaBuild: true })).toBe(checkout);
+    expect(checkoutHref({ mode: "test", dev: false, search: "", qaBuild: true })).toBe(null);
+    expect(checkoutHref({ mode: "live", dev: false })).toBe(checkout);
     expect(checkoutHref({ mode: "live", purchaseUrl: "  " })).toBe(null);
-    expect(checkoutHref({
-      mode: "live",
-      purchaseUrl: `${siteConfig.purchaseUrl}?logo=0&locale=de`,
-    })).toBe(`${siteConfig.purchaseUrl}?logo=0&locale=de`);
+    expect(checkoutHref({ mode: "live", purchaseUrl: `${checkout}?logo=0` })).toBe(`${checkout}?logo=0`);
     expect(deliveryIssuesIn(["https://example.com", "Upgrade to Pro", "scan the QR"]).length).toBe(3);
     expect(findDeliveryIssues("example.com")).toContain("domain");
     expect(findDeliveryIssues("ribbonwren.com")).toContain("domain");

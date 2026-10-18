@@ -185,6 +185,12 @@ export async function verifyLemonSqueezyLicense(key, options = {}) {
     // Do not spend a new activation. The buyer has to paste the key again.
     return fail("lemon-instance");
   }
+  if (config.mode === "live" && json?.license_key?.test_mode === true) {
+    if (action === "activate" && json.instance?.id) {
+      await postLicense("deactivate", { license_key: raw, instance_id: json.instance.id }, fetchFn);
+    }
+    return fail("lemon-test");
+  }
   if (hasMeta(json.meta) && !metaMatches(json.meta, config)) {
     if (action === "activate" && json.activated === true && json.instance?.id) {
       await postLicense("deactivate", { license_key: raw, instance_id: json.instance.id }, fetchFn);

@@ -64,6 +64,7 @@ export function unlockError(reason) {
   if (reason === "lemon-limit") return "This key is already active on 3 devices. Deactivate one, then try again.";
   if (reason === "lemon-disabled") return "This key is disabled or was refunded, so it can't unlock Pro.";
   if (reason === "lemon-mismatch") return "That key isn't for Ribbonwren Bingo Pro.";
+  if (reason === "lemon-test") return "This is a test license key, so it can't unlock the live site.";
   if (reason === "lemon-network") return "The license check couldn't connect. Check your connection and try again.";
   if (reason === "lemon-instance") return "This device is no longer activated. Paste your license key to activate it again.";
   if (reason === "lemon-link") return "Paste a license key into Enter unlock code. A link can't activate it.";

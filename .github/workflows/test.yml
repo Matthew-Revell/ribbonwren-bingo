@@ -19,6 +19,12 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y poppler-utils
       - run: npm ci
       - run: npm test
+      - name: Production bundle hides the test checkout
+        env:
+          VITE_LS_QA: ""
+        run: |
+          npm run build
+          node tools/assert-production-key.mjs --bundle-only --dist dist
 
   e2e:
     name: Browser
@@ -34,3 +40,7 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium firefox webkit
       - run: npm run test:e2e
+      - name: Browser smoke against the production build
+        env:
+          VITE_LS_QA: ""
+        run: npm run test:e2e:preview

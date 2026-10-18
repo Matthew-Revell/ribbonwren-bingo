@@ -30,7 +30,7 @@ test("makes a word-card PDF and blocks 11 cards on the free tier", async ({ page
   await page.goto("./index.html");
   await expect(page.getByRole("heading", { name: "Ribbonwren Bingo" })).toBeVisible();
   await expect(page.locator("#pro-test-mode")).toHaveText("Test mode");
-  await expect(page.locator("#get-pro")).toHaveAttribute("href", "https://ribbonwren.lemonsqueezy.com/checkout/buy/d376910a-cd10-472a-a1bb-539ca3020be7?locale=en");
+  await expect(page.locator("#get-pro")).toHaveAttribute("href", "https://ribbonwren.lemonsqueezy.com/checkout/buy/d376910a-cd10-472a-a1bb-539ca3020be7");
   await expect(page.locator("#get-pro")).toHaveAttribute("target", "_blank");
   await expect(page.getByText("Pro coming soon")).toHaveCount(0);
   await page.getByRole("button", { name: "Use a sample list" }).click();
@@ -166,6 +166,13 @@ test("shows the picture lock, then accepts a png and explains a bad HEIC", async
     buffer: Buffer.from("this is not a heic photo"),
   });
   await expect(page.locator("#pictures-msg")).toContainText("HEIC");
+  await page.locator("#picture-input").setInputFiles({
+    name: "tiny.heic",
+    mimeType: "image/heic",
+    buffer: readFileSync(new URL("../fixtures/tiny.heic", import.meta.url)),
+  });
+  await expect(page.locator("#picture-list img")).toHaveCount(2);
+  await expect.poll(() => page.locator("#picture-list img").nth(1).evaluate((img) => img.naturalWidth)).toBeGreaterThan(0);
 });
 
 test("owner mode names the custom-order file and keeps the private key out of storage", async ({ page }) => {

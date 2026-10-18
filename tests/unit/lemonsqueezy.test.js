@@ -296,6 +296,42 @@ describe("Lemon Squeezy licenses", () => {
     expect(bare).toEqual({ ok: false, reason: "lemon-instance" });
   });
 
+  it("rejects a test-mode key when the store is live and still accepts one in test mode", async () => {
+    const live = { ...siteConfig.lemonSqueezy, mode: "live" };
+    const activated = mockFetch(async ({ url }) => {
+      if (url.endsWith("/deactivate")) return { json: { deactivated: true } };
+      return { json: body({ license_key: { test_mode: true } }) };
+    });
+    const blocked = await verifyLemonSqueezyLicense(KEY, {
+      fetch: activated.fetchFn,
+      now: NOW,
+      allowActivate: true,
+      lemonSqueezy: live,
+    });
+    expect(blocked).toEqual({ ok: false, reason: "lemon-test" });
+    expect(activated.calls.map((call) => call.url.split("/").pop())).toEqual(["activate", "deactivate"]);
+    expect(unlockError("lemon-test")).toBe("This is a test license key, so it can't unlock the live site.");
+
+    const checked = mockFetch(async () => ({ json: body({ license_key: { test_mode: true }, valid: true }) }));
+    const validated = await verifyLemonSqueezyLicense(KEY, {
+      fetch: checked.fetchFn,
+      now: NOW,
+      stored: record(),
+      lemonSqueezy: live,
+    });
+    expect(validated).toEqual({ ok: false, reason: "lemon-test" });
+    expect(checked.calls.map((call) => call.url.split("/").pop())).toEqual(["validate"]);
+
+    const allowed = mockFetch(async () => ({ json: body({ license_key: { test_mode: true } }) }));
+    const testStore = await verifyLemonSqueezyLicense(KEY, {
+      fetch: allowed.fetchFn,
+      now: NOW,
+      allowActivate: true,
+    });
+    expect(testStore.ok).toBe(true);
+    expect(allowed.calls).toHaveLength(1);
+  });
+
   it("does not activate when validate returns 404 or the instance is gone", async () => {
     const missing = mockFetch(async () => ({ status: 404, json: { valid: false, error: "not found" } }));
     const gone = await verifyLemonSqueezyLicense(KEY, {

@@ -67,7 +67,7 @@ export function splitDelimited(text) {
       quote = '"';
       continue;
     }
-    if (ch === OPEN_CURLY) {
+    if (ch === OPEN_CURLY && current.trim() === "") {
       quote = OPEN_CURLY;
       continue;
     }
@@ -84,6 +84,7 @@ export function splitDelimited(text) {
 
 function hasUnquotedDelimiter(text) {
   let quote = "";
+  let current = "";
   const value = String(text ?? "");
   for (let i = 0; i < value.length; i++) {
     const ch = value[i];
@@ -92,21 +93,25 @@ function hasUnquotedDelimiter(text) {
         if (value[i + 1] === '"') i += 1;
         else quote = "";
       }
+      current += ch;
       continue;
     }
     if (quote === OPEN_CURLY) {
       if (ch === CLOSE_CURLY && !/[A-Za-z0-9]/.test(value[i + 1] || "")) quote = "";
+      else current += ch;
       continue;
     }
     if (ch === '"') {
       quote = '"';
+      current += ch;
       continue;
     }
-    if (ch === OPEN_CURLY) {
+    if (ch === OPEN_CURLY && current.trim() === "") {
       quote = OPEN_CURLY;
       continue;
     }
     if (ch === "," || ch === ";") return true;
+    current += ch;
   }
   return false;
 }
