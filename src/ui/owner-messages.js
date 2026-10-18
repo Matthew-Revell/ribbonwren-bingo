@@ -22,12 +22,36 @@ function sampleOf(hits) {
     .join("; ");
 }
 
+function codesIn(hits) {
+  return new Set((hits || []).flatMap((hit) => hit.issues || []));
+}
+
 export function etsyBlockedMessage(hits) {
-  return `This custom-order PDF can't include web addresses, email addresses, links, QR codes, or checkout names such as Lemon Squeezy and Gumroad. Edit this text first: ${sampleOf(hits)}`;
+  const codes = codesIn(hits);
+  const parts = [];
+  if (["url", "www", "domain", "email"].some((code) => codes.has(code))) {
+    parts.push("web addresses, email addresses, or links");
+  }
+  const checkout = [];
+  if (codes.has("lemon")) checkout.push("Lemon Squeezy");
+  if (codes.has("gumroad")) checkout.push("Gumroad");
+  if (checkout.length) parts.push(`checkout names such as ${checkout.join(" and ")}`);
+  const what = parts.join(", or ") || "blocked wording";
+  return `This custom-order PDF can't include ${what}. Edit this text first: ${sampleOf(hits)}`;
 }
 
 export function wordingWarning(hits) {
-  return `Some of these words can read like a sales pitch (Pro, Unlock, Upgrade) or like a web address (Join.us). Check the box to print them anyway: ${sampleOf(hits)}`;
+  const codes = codesIn(hits);
+  const parts = [];
+  const pitch = ["pro", "upgrade", "unlock"].filter((code) => codes.has(code));
+  if (pitch.length) {
+    const names = pitch.map((code) => ({ pro: "Pro", upgrade: "Upgrade", unlock: "Unlock" }[code]));
+    parts.push(`a sales pitch (${names.join(", ")})`);
+  }
+  if (codes.has("domain-word")) parts.push("a web address such as Join.us");
+  if (codes.has("qr")) parts.push("QR");
+  const what = parts.join(" and ") || "wording to double-check";
+  return `These words can read like ${what}. Check the box to print them anyway: ${sampleOf(hits)}`;
 }
 
 export function splitTooBigMessage() {

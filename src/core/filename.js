@@ -9,6 +9,8 @@ function extensionOf(name) {
 export function foldFilename(input) {
   let s = String(input ?? "").normalize("NFKC");
   s = s.replace(/\p{Regional_Indicator}/gu, "");
+  s = s.replace(/\p{Emoji_Modifier}/gu, "");
+  s = s.replace(/[\u{1F3FB}-\u{1F3FF}]/gu, "");
   s = s.replace(/[\u200B-\u200D\uFE0E\uFE0F]/g, "");
   s = s.normalize("NFD").replace(/\p{M}/gu, "");
   return s;

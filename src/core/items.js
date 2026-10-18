@@ -35,28 +35,40 @@ export function linesUseDelimiters(text) {
  * `"milk, cookies"` stays one item, and the wrapping quotes are removed.
  * A doubled quote inside a quoted item is a literal quote.
  */
+const OPEN_CURLY = "\u2018";
+const CLOSE_CURLY = "\u2019";
+
 export function splitDelimited(text) {
   const parts = [];
   let current = "";
-  let quoted = false;
+  let quote = "";
   const value = String(text ?? "");
   for (let i = 0; i < value.length; i++) {
     const ch = value[i];
-    if (quoted) {
+    if (quote === '"') {
       if (ch === '"') {
         if (value[i + 1] === '"') {
           current += '"';
           i += 1;
         } else {
-          quoted = false;
+          quote = "";
         }
       } else {
         current += ch;
       }
       continue;
     }
+    if (quote === OPEN_CURLY) {
+      if (ch === CLOSE_CURLY && !/[A-Za-z0-9]/.test(value[i + 1] || "")) quote = "";
+      else current += ch;
+      continue;
+    }
     if (ch === '"') {
-      quoted = true;
+      quote = '"';
+      continue;
+    }
+    if (ch === OPEN_CURLY) {
+      quote = OPEN_CURLY;
       continue;
     }
     if (ch === "," || ch === ";") {
@@ -71,19 +83,30 @@ export function splitDelimited(text) {
 }
 
 function hasUnquotedDelimiter(text) {
-  let quoted = false;
+  let quote = "";
   const value = String(text ?? "");
   for (let i = 0; i < value.length; i++) {
     const ch = value[i];
-    if (ch === '"') {
-      if (quoted && value[i + 1] === '"') {
-        i += 1;
-        continue;
+    if (quote === '"') {
+      if (ch === '"') {
+        if (value[i + 1] === '"') i += 1;
+        else quote = "";
       }
-      quoted = !quoted;
       continue;
     }
-    if (!quoted && (ch === "," || ch === ";")) return true;
+    if (quote === OPEN_CURLY) {
+      if (ch === CLOSE_CURLY && !/[A-Za-z0-9]/.test(value[i + 1] || "")) quote = "";
+      continue;
+    }
+    if (ch === '"') {
+      quote = '"';
+      continue;
+    }
+    if (ch === OPEN_CURLY) {
+      quote = OPEN_CURLY;
+      continue;
+    }
+    if (ch === "," || ch === ";") return true;
   }
   return false;
 }
@@ -107,6 +130,9 @@ function stripWrappingQuotes(value) {
   const trimmed = String(value ?? "").trim();
   if (trimmed.length >= 2 && trimmed.startsWith('"') && trimmed.endsWith('"')) {
     return trimmed.slice(1, -1).replace(/""/g, '"').trim();
+  }
+  if (trimmed.length >= 2 && trimmed.startsWith(OPEN_CURLY) && trimmed.endsWith(CLOSE_CURLY)) {
+    return trimmed.slice(1, -1).trim();
   }
   return trimmed;
 }

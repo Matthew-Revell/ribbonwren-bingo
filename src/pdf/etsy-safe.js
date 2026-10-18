@@ -4,20 +4,31 @@
  * Words such as Pro, Unlock, and Upgrade are warnings: the owner can
  * print them after an explicit override. A single word plus a short TLD
  * such as Join.us is the same kind of warning, because it is often a
- * sentence and not a site. Real hosts, paths, www, emails, QR, Lemon
- * Squeezy, and Gumroad stay a hard block. Buyer text, the seed, and the
- * free-space line are all checked. Text is normalized with NFKC first so
- * full-width lookalikes such as ｈｔｔｐｓ:// are caught.
+ * sentence and not a site. So is a spelled "dot com" with no host name
+ * in front of it ("Dot com bubble", "polka dot store"). A host written
+ * out, such as "ribbonwren dot com", stays a hard block, as do real
+ * hosts, paths, www, emails, Lemon Squeezy, and Gumroad. QR is a warning.
+ * Buyer text, the seed, and the free-space line are all checked. Text is
+ * normalized with NFKC first so full-width lookalikes such as ｈｔｔｐｓ://
+ * are caught. Parenthetical dots, spaced dots, and the ideographic full
+ * stop are folded into a normal dot before that scan.
  */
-const HARD = new Set(["url", "www", "domain", "email", "qr", "lemon", "gumroad"]);
+const HARD = new Set(["url", "www", "domain", "email", "lemon", "gumroad"]);
 // Short TLDs that are also ordinary words. "Mr.Me" and "Join.us" can be a
 // sentence, so the owner may print them. com, tv, ee, and the rest stay blocked.
 const WORD_TLDS = new Set(["us", "me", "co"]);
-const REAL_TLDS = "com|net|org|io|co|uk|ca|us|shop|store|app|dev|info|biz|me|etsy|ly|gl|ee|xyz|site|link|tv|gg";
+// Ordinary words that sit in front of "dot" in a phrase, not a host name.
+const DOT_PHRASE = new Set([
+  "a", "an", "the", "and", "or", "of", "to", "for", "with", "on", "in",
+  "my", "your", "our", "her", "his", "its", "one", "big", "little",
+  "red", "blue", "black", "white", "green", "pink", "gold", "silver",
+  "polka", "spot", "spots", "color", "colour", "colored", "coloured",
+]);
+const REAL_TLDS = "com|net|org|io|co|uk|ca|us|shop|store|app|dev|info|biz|me|etsy|ly|gl|ee|xyz|site|link|tv|gg|click|online|page";
 
 // A hostname with no scheme, such as example.com, linktr.ee, or twitch.tv.
 const BARE_DOMAIN = new RegExp(`\\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+(?:${REAL_TLDS})\\b`, "i");
-const SPELLED_DOMAIN = new RegExp(`\\b(?:[a-z0-9-]+\\s+)?dot\\s+(?:${REAL_TLDS})\\b`, "i");
+const SPELLED_DOMAIN = new RegExp(`\\b(?:([a-z0-9][a-z0-9-]*)\\s+)?dot\\s+(?:${REAL_TLDS})\\b`, "gi");
 const EMAIL = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i;
 
 const RULES = [
@@ -34,7 +45,11 @@ const RULES = [
 ];
 
 function normalized(text) {
-  return String(text ?? "").normalize("NFKC");
+  return String(text ?? "")
+    .normalize("NFKC")
+    .replace(/\u3002/g, ".")
+    .replace(/[({\[]\.[)}\]]/g, ".")
+    .replace(/([a-z0-9])\s+\.\s+(?=[a-z])/gi, "$1.");
 }
 
 /** A lone "Join.us" can be a sentence. Hosts, paths, and other TLDs cannot. */
@@ -60,6 +75,21 @@ function domainIssueCodes(value) {
   return [];
 }
 
+/** "ribbonwren dot com" is a host. "Polka dot store" is a phrase. */
+function spelledDomainCodes(value) {
+  const re = new RegExp(SPELLED_DOMAIN.source, "gi");
+  let hard = false;
+  let soft = false;
+  for (const match of value.matchAll(re)) {
+    const label = match[1] || "";
+    if (label && !DOT_PHRASE.has(label.toLowerCase())) hard = true;
+    else soft = true;
+  }
+  if (hard) return ["domain"];
+  if (soft) return ["domain-word"];
+  return [];
+}
+
 export function findDeliveryIssues(text) {
   const issues = [];
   const value = normalized(text);
@@ -67,8 +97,10 @@ export function findDeliveryIssues(text) {
     if (rule.code === "domain") continue;
     if (rule.re.test(value)) issues.push(rule.code);
   }
-  if (SPELLED_DOMAIN.test(value)) issues.push("domain");
-  issues.push(...domainIssueCodes(value));
+  const spelled = spelledDomainCodes(value);
+  const domains = domainIssueCodes(value);
+  if (spelled.includes("domain") || domains.includes("domain")) issues.push("domain");
+  else if (spelled.includes("domain-word") || domains.includes("domain-word")) issues.push("domain-word");
   return [...new Set(issues)];
 }
 
@@ -102,7 +134,10 @@ export function scrubMeta(text) {
     .replace(/https?:\/\/\S+/gi, "")
     .replace(/\bwww\.\S+/gi, "")
     .replace(new RegExp(EMAIL.source, "gi"), "")
-    .replace(new RegExp(SPELLED_DOMAIN.source, "gi"), "")
+    .replace(new RegExp(SPELLED_DOMAIN.source, "gi"), (full, label) => {
+      if (label && !DOT_PHRASE.has(String(label).toLowerCase())) return "";
+      return full;
+    })
     .replace(new RegExp(BARE_DOMAIN.source, "gi"), "")
     .replace(/\s+/g, " ")
     .trim();

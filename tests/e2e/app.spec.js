@@ -298,10 +298,17 @@ test("counts comma-separated items and warns before printing a sales pitch", asy
   const phrase = await pdfPages(phraseDownload);
   expect(phrase.text).toContain("Join.us");
 
-  await page.locator("#words").fill(["scan the QR", ...Array.from({ length: 7 }, (_, index) => `cup ${index}`)].join("\n"));
-  await expect(page.locator("#wording-row")).toBeHidden();
-  await page.getByRole("button", { name: "Make PDF" }).click();
-  await expect(page.locator("#order-status")).toContainText("QR");
+  await page.locator("#words").fill(["QR code menu", ...Array.from({ length: 7 }, (_, index) => `cup ${index}`)].join("\n"));
+  await expect(page.locator("#wording-warning")).toContainText("QR");
+  await expect(page.locator("#wording-warning")).not.toContainText("sales pitch");
+  await expect(page.locator("#wording-override")).toBeVisible();
+  await page.locator("#wording-override").check();
+  const [qrDownload] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("button", { name: "Make PDF" }).click(),
+  ]);
+  const qr = await pdfPages(qrDownload);
+  expect(qr.text).toContain("QR code menu");
 });
 
 test("accepts a large photo, a WebP, and several pictures", async ({ page }) => {

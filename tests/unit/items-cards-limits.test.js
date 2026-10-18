@@ -6,7 +6,8 @@ import { licenseFilename, ownerCardFilename, sanitizeFilename } from "../../src/
 import { fitEdge, MAX_BYTES, MAX_EDGE, MAX_PICTURES, prepareImageFile } from "../../src/pdf/images.js";
 import { fitAll, fitText } from "../../src/pdf/fit-text.js";
 import { CHECK_INCH, MARGIN, cardSlots, contentRect, pageDimensions, paginateCallSheet, rectsOverlap } from "../../src/pdf/layout.js";
-import { deliveryIssuesIn, findDeliveryIssues, partitionDeliveryHits } from "../../src/pdf/etsy-safe.js";
+import { deliveryIssuesIn, findDeliveryIssues, partitionDeliveryHits, scrubMeta } from "../../src/pdf/etsy-safe.js";
+import { etsyBlockedMessage, wordingWarning } from "../../src/ui/owner-messages.js";
 import { recipeError } from "../../src/core/recipe.js";
 import { ALGORITHM } from "../../src/core/rng.js";
 import { buildDeliveryFiles, splitRanges } from "../../src/pdf/split.js";
@@ -69,6 +70,10 @@ describe("parseItems", () => {
     expect(parseItems('"milk, cookies"', { mode: "lines" }).items).toEqual(["milk, cookies"]);
     expect(parseItems("\u201Cmilk, cookies\u201D", { mode: "auto" }).items).toEqual(["milk, cookies"]);
     expect(parseItems("tea, \u201Cmilk, cookies\u201D, cocoa", { mode: "auto" }).items).toEqual(["tea", "milk, cookies", "cocoa"]);
+    expect(parseItems("\u2018milk, cookies\u2019", { mode: "auto" }).items).toEqual(["milk, cookies"]);
+    expect(parseItems("tea, \u2018milk, cookies\u2019, cocoa", { mode: "auto" }).items).toEqual(["tea", "milk, cookies", "cocoa"]);
+    expect(parseItems("\u2018Santa\u2019s list, cookies\u2019", { mode: "auto" }).items).toEqual(["Santa\u2019s list, cookies"]);
+    expect(parseItems("Santa\u2019s hat\ncocoa", { mode: "auto" }).items).toEqual(["Santa\u2019s hat", "cocoa"]);
   });
 
   it("warns when a mostly line-based list still has a comma line", () => {
@@ -206,6 +211,8 @@ describe("filenames", () => {
     expect(sanitizeFilename("hello--world__x.pdf")).toBe("hello-world-x.pdf");
     expect(sanitizeFilename("🇺🇸party.pdf")).toBe("party.pdf");
     expect(sanitizeFilename("na\u200dme.pdf")).toBe("name.pdf");
+    expect(sanitizeFilename("hello\u{1F44D}\u{1F3FD}.pdf")).toBe("hello.pdf");
+    expect(sanitizeFilename("wave\u{1F3FD}.pdf")).toBe("wave.pdf");
     expect(sanitizeFilename("-_hello_-.pdf")).toBe("hello.pdf");
     const named = ownerCardFilename({ order: "Café--party", count: 1, pageSize: "letter" });
     expect(named).toBe("RW-Bingo_Cafe-party_1c_Letter.pdf");
@@ -330,6 +337,18 @@ describe("delivery rules", () => {
     expect(findDeliveryIssues("example.store")).toContain("domain");
     expect(findDeliveryIssues("example.link")).toContain("domain");
     expect(findDeliveryIssues("example dot com")).toContain("domain");
+    expect(findDeliveryIssues("example dot com")).not.toContain("domain-word");
+    expect(findDeliveryIssues("ribbonwren dot com")).toEqual(["domain"]);
+    expect(findDeliveryIssues("Dot com bubble")).toEqual(["domain-word"]);
+    expect(findDeliveryIssues("Polka dot store")).toEqual(["domain-word"]);
+    expect(findDeliveryIssues("polka dot me")).toEqual(["domain-word"]);
+    expect(findDeliveryIssues("example.click")).toContain("domain");
+    expect(findDeliveryIssues("example.online")).toContain("domain");
+    expect(findDeliveryIssues("example.page")).toContain("domain");
+    expect(findDeliveryIssues("ribbonwren(.)com")).toEqual(["domain"]);
+    expect(findDeliveryIssues("ribbonwren . com")).toEqual(["domain"]);
+    expect(findDeliveryIssues("ribbonwren\u3002com")).toEqual(["domain"]);
+    expect(findDeliveryIssues("QR code menu")).toEqual(["qr"]);
     expect(findDeliveryIssues("Shop.Com")).toContain("domain");
     expect(findDeliveryIssues("Shop.Com")).not.toContain("domain-word");
     expect(findDeliveryIssues("ribbonwren.com")).toContain("domain");
@@ -342,9 +361,28 @@ describe("delivery rules", () => {
       "see Gumroad",
       "ribbonwren.com",
     ]));
-    expect(parts.soft.map((hit) => hit.text)).toEqual(["Join.us", "Pro tip"]);
-    expect(parts.hard.map((hit) => hit.issues[0])).toEqual(["qr", "lemon", "gumroad", "domain"]);
+    expect(parts.soft.map((hit) => hit.text)).toEqual(["Join.us", "Pro tip", "scan the QR"]);
+    expect(parts.hard.map((hit) => hit.issues[0])).toEqual(["lemon", "gumroad", "domain"]);
     expect(deliveryIssuesIn(["cocoa", "paper crane", "Ribbonwren Paper Co."])).toEqual([]);
+    const qrOnly = wordingWarning([{ text: "QR code menu", issues: ["qr"] }]);
+    expect(qrOnly).toMatch(/QR/);
+    expect(qrOnly).toMatch(/print them anyway/);
+    expect(qrOnly).not.toMatch(/Pro|Upgrade|Unlock|Join\.us/);
+    const proOnly = wordingWarning([{ text: "Pro tip", issues: ["pro"] }]);
+    expect(proOnly).toMatch(/Pro/);
+    expect(proOnly).not.toMatch(/Upgrade|QR|Join\.us/);
+    const both = wordingWarning([
+      { text: "Pro tip", issues: ["pro"] },
+      { text: "Join.us", issues: ["domain-word"] },
+    ]);
+    expect(both).toMatch(/Pro/);
+    expect(both).toMatch(/Join\.us/);
+    expect(both).not.toMatch(/Upgrade|QR/);
+    const gumroad = etsyBlockedMessage([{ text: "see Gumroad", issues: ["gumroad"] }]);
+    expect(gumroad).toMatch(/Gumroad/);
+    expect(gumroad).not.toMatch(/Lemon|QR|web addresses/);
+    expect(scrubMeta("ribbonwren dot com")).not.toMatch(/ribbonwren/i);
+    expect(scrubMeta("Polka dot store")).toMatch(/Polka dot store/);
   });
 
   it("rejects a saved game whose fields cannot be reprinted", () => {

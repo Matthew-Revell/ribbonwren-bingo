@@ -282,8 +282,18 @@ describe("pdf cards", () => {
     });
     expect(printedPhrase.ok).toBe(true);
     expect(inspect(printedPhrase.bytes).text).toContain("Join.us");
+    const qrBlocked = await renderWords({
+      items: ["QR code menu", ...list.slice(1)],
+      count: 1,
+      grid: 3,
+      freeSpace: true,
+      tier: "owner",
+      audience: "etsy",
+    });
+    expect(qrBlocked.ok).toBe(false);
+    expect(qrBlocked.error).toBe("etsy-wording");
     const qr = await renderWords({
-      items: ["scan the QR", ...list.slice(1)],
+      items: ["QR code menu", ...list.slice(1)],
       count: 1,
       grid: 3,
       freeSpace: true,
@@ -291,8 +301,8 @@ describe("pdf cards", () => {
       audience: "etsy",
       allowWording: true,
     });
-    expect(qr.ok).toBe(false);
-    expect(qr.error).toBe("etsy-text");
+    expect(qr.ok).toBe(true);
+    expect(inspect(qr.bytes).text).toContain("QR code menu");
   });
 
   it("flows 300 call-sheet items onto more than one page", async () => {

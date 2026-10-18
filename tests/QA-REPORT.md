@@ -18,7 +18,7 @@ PDF checks, using poppler, include:
 - Embedded subset fonts (Nunito 400/700/800, Caveat 700, DM Serif Display). No Helvetica.
 - `PrintScaling` set to None, and a 1-inch call-sheet square.
 - Free footer present on free cards and absent on Pro.
-- Owner-audience PDFs block web addresses, emails, links, QR codes, and checkout names (Lemon Squeezy, Gumroad), including `linktr.ee`, `twitch.tv`, `discord.gg`, `.xyz`, and “dot com”. A name-like false address such as `Mr.Me` or `Join.us`, and words such as Pro, print only after the owner checks the override. The override clears when those words change. A raw scan of an ordinary owner file finds no `http`.
+- Owner-audience PDFs block web addresses, emails, links, and checkout names (Lemon Squeezy, Gumroad), including `linktr.ee`, `twitch.tv`, `discord.gg`, `.xyz`, `.click`, `.online`, `.page`, `ribbonwren dot com`, and obfuscated dots. Phrases such as “Dot com bubble” and “polka dot store”, a name-like false address such as `Mr.Me`, and words such as Pro or QR, print only after the owner checks the override. The warning names only the categories that were flagged, and the override clears when those words change. A raw scan of an ordinary owner file finds no `http`.
 - 300 call-sheet items flow onto more than one page.
 - A picture is embedded once. 100 word cards stay under 3 MB. 30 cards render in under 3 seconds here.
 - Theme colors sampled from a raster of page 1, within 2 levels per channel.
