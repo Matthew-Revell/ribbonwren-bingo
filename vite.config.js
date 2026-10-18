@@ -4,7 +4,8 @@ import { defineConfig } from "vitest/config";
 const PAGES_DEPLOY_WORKFLOW = "Deploy GitHub Pages";
 
 /**
- * VITE_LS_QA=1 lets ?lstest=1 reveal the test checkout in a production build.
+ * VITE_LS_QA=1 compiles the test checkout into a production build.
+ * The page passes qaBuild for that build, so ?lstest=1 reveals the link.
  * The Pages deploy workflow forces this off, including a value from the
  * runner environment or an env file.
  */

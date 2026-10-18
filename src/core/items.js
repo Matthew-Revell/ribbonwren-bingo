@@ -38,6 +38,19 @@ export function linesUseDelimiters(text) {
 const OPEN_CURLY = "\u2018";
 const CLOSE_CURLY = "\u2019";
 
+/**
+ * A leading ‘ is a quote only when a closing ’ appears later in the line.
+ * iOS types ‘ at the start of 'tis and 'twas and does not add a closer. That mark
+ * stays a plain character, so the next comma or the end of the line still splits.
+ * A ’ followed by a letter, as in Santa’s, is an apostrophe, not a closer.
+ */
+function curlyQuoteClosesLater(value, openIndex) {
+  for (let i = openIndex + 1; i < value.length; i++) {
+    if (value[i] === CLOSE_CURLY && !/[A-Za-z0-9]/.test(value[i + 1] || "")) return true;
+  }
+  return false;
+}
+
 export function splitDelimited(text) {
   const parts = [];
   let current = "";
@@ -67,7 +80,7 @@ export function splitDelimited(text) {
       quote = '"';
       continue;
     }
-    if (ch === OPEN_CURLY && current.trim() === "") {
+    if (ch === OPEN_CURLY && current.trim() === "" && curlyQuoteClosesLater(value, i)) {
       quote = OPEN_CURLY;
       continue;
     }
@@ -106,7 +119,7 @@ function hasUnquotedDelimiter(text) {
       current += ch;
       continue;
     }
-    if (ch === OPEN_CURLY && current.trim() === "") {
+    if (ch === OPEN_CURLY && current.trim() === "" && curlyQuoteClosesLater(value, i)) {
       quote = OPEN_CURLY;
       continue;
     }

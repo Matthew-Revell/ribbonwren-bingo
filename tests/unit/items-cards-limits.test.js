@@ -78,6 +78,28 @@ describe("parseItems", () => {
     expect(parseItems("Mom\u2018s cocoa, Santa", { mode: "auto" }).items).toEqual(["Mom\u2018s cocoa", "Santa"]);
   });
 
+  it("treats an unclosed leading curly apostrophe as a plain character", () => {
+    expect(parseItems("tea, \u2018tis the season, cocoa", { mode: "auto" }).items).toEqual([
+      "tea",
+      "\u2018tis the season",
+      "cocoa",
+    ]);
+    expect(parseItems("\u2018twas the night, cocoa", { mode: "auto" }).items).toEqual(["\u2018twas the night", "cocoa"]);
+    expect(parseItems("tea; \u2018tis the season; cocoa", { mode: "auto" }).items).toEqual([
+      "tea",
+      "\u2018tis the season",
+      "cocoa",
+    ]);
+    expect(forceSplitDelimiters("tea, \u2018tis the season, cocoa").split("\n")).toEqual([
+      "tea",
+      "\u2018tis the season",
+      "cocoa",
+    ]);
+    const warned = parseItems("cocoa\n\u2018tis the season, cocoa\npaper", { mode: "auto" });
+    expect(warned.items).toEqual(["cocoa", "\u2018tis the season, cocoa", "paper"]);
+    expect(warned.warnings.map((warning) => warning.code)).toContain("comma-item");
+  });
+
   it("warns when a mostly line-based list still has a comma line", () => {
     const raw = ["cocoa", "Snow, Sled, Cocoa, Elf, Mittens", "paper"].join("\n");
     const parsed = parseItems(raw, { mode: "auto" });

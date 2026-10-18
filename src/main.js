@@ -1,4 +1,4 @@
-import { siteConfig, checkoutHref } from "./config.js";
+import { siteConfig, checkoutHref, includeTestCheckout } from "./config.js";
 import { buildCards } from "./core/cards.js";
 import { parseItems } from "./core/items.js";
 import { getLimits } from "./core/limits.js";
@@ -12,6 +12,7 @@ import {
   deactivateLemonSqueezyLicense,
   isLemonSqueezyKey,
   licenseStorageRecord,
+  sameLicenseKey,
   verifyLemonSqueezyLicense,
 } from "./unlock/lemonsqueezy.js";
 import { clearAppData, clearLegacyUnlock, clearUnlock, loadDraft, loadLegacyUnlock, loadUnlock, saveDraft, saveUnlock } from "./unlock/storage.js";
@@ -106,7 +107,11 @@ function showMessages(result) {
 function renderProOffer() {
   const offer = $("pro-offer");
   offer.replaceChildren();
-  const href = checkoutHref({ dev: import.meta.env.DEV, search: location.search });
+  const href = checkoutHref({
+    dev: import.meta.env.DEV,
+    search: location.search,
+    qaBuild: includeTestCheckout && !import.meta.env.DEV,
+  });
   if (href && siteConfig.lemonSqueezy?.mode === "test") {
     const marker = document.createElement("p");
     marker.className = "test-mode";
@@ -327,6 +332,11 @@ async function onPictures(event) {
   if (messages[0]) $("pictures-msg").textContent = messages[0];
 }
 
+function clearUnlockInput() {
+  const input = $("unlock-code");
+  if (input) input.value = "";
+}
+
 function setUnlockMessage(text, kind = "error") {
   const node = $("unlock-msg");
   node.className = kind === "error" ? "field-msg error" : "field-msg";
@@ -407,6 +417,7 @@ async function acceptCode(code, { allowActivate = false } = {}) {
     externalVerify: externalVerify(),
     stored,
     allowActivate,
+    includeTestCheckout,
   });
   if (!result.ok && result.reason === "lemon-instance") {
     clearUnlock("pro");
@@ -414,11 +425,27 @@ async function acceptCode(code, { allowActivate = false } = {}) {
     hideKeyMask();
     renderUnlock();
     updatePreview();
+    clearUnlockInput();
+    setUnlockMessage(unlockError(result.reason));
+    return false;
+  }
+  if (!result.ok && result.reason === "lemon-test") {
+    if (stored?.provider === "lemonsqueezy" && sameLicenseKey(stored.code, trimmed)) {
+      clearUnlock("pro");
+      if (unlock?.payload?.provider === "lemonsqueezy") unlock = null;
+      hideKeyMask();
+      renderUnlock();
+      updatePreview();
+    }
+    clearUnlockInput();
     setUnlockMessage(unlockError(result.reason));
     return false;
   }
   setUnlockMessage(result.ok ? "" : unlockError(result.reason));
-  if (!result.ok) return false;
+  if (!result.ok) {
+    clearUnlockInput();
+    return false;
+  }
   unlock = { code: trimmed, payload: result.payload };
   if (result.payload?.provider === "lemonsqueezy") {
     saveUnlock(licenseStorageRecord(trimmed, result), "pro");

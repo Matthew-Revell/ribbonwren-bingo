@@ -6,10 +6,10 @@ Recorded against the MVP on this branch. Automated commands were run in this env
 
 | Check | Result |
 | --- | --- |
-| `npm test` (Vitest: shuffle, cards, limits, unlock, Lemon Squeezy, deploy guard, source rules, PDF) | 78 passed |
+| `npm test` (Vitest: shuffle, cards, limits, unlock, Lemon Squeezy, deploy guard, source rules, PDF) | 79 passed |
 | `npm run test:e2e` | 54 passed |
-| `npm run test:e2e:preview` (built site, `?lstest=1` shows no checkout) | 3 passed |
-| `node tools/assert-production-key.mjs --bundle-only --dist dist` | the test checkout URL and `lstest` are absent |
+| `npm run test:e2e:preview` (built site: no checkout, test-mode key refused, stored test activation dropped, HEIC decoded) | 12 passed |
+| `node tools/assert-production-key.mjs --bundle-only --dist dist` | the test checkout URL and `lstest` are absent, and `test_mode` is present |
 | `npm run build` | `dist/` produced |
 
 The 100-card Pro download runs in Chromium, Firefox, and WebKit. A call sheet for one card says “1 card”.
@@ -26,7 +26,7 @@ PDF checks, using poppler, include:
 - Theme colors sampled from a raster of page 1, within 2 levels per channel.
 - License PDF names the buyer, the order, the code id, and the unlock link, and does not say Etsy.
 
-Unit checks include the frozen `rwb-v1` shuffle (seeds ignore case, spaces, hyphens, en dashes, em dashes, and underscores, and a seed of `---` is rejected), owner file names (`RW-Bingo_<order>_<N>c_<Letter|A4>.pdf`, at most 70 safe characters, accents folded), comma and semicolon lists including a trailing newline, curly quotes, and a warning plus one-click split when a mostly line-based list still contains `Snow, Sled, Cocoa, Elf, Mittens`, the 19 MB split helper, a ledger with no email column, and the Lemon Squeezy license check with a mocked `fetch` (activate only on submit, validate, no second activation when validate returns 404 or `instance_id not found`, store/product/variant mismatch, activation limit, disabled or refunded, offline grace that rejects a future or +365 day timestamp, and deactivate). The browser test activates a mocked key, clears the key box, shows “Key ending in …”, reloads, validates, and deactivates. Remove unlock and Clear my data call deactivate first. A free-card PDF from that run contains no “Test mode”, no Lemon Squeezy address, and no “Get Pro.”
+Unit checks include the frozen `rwb-v1` shuffle (seeds ignore case, spaces, hyphens, en dashes, em dashes, and underscores, and a seed of `---` is rejected), owner file names (`RW-Bingo_<order>_<N>c_<Letter|A4>.pdf`, at most 70 safe characters, accents folded), comma and semicolon lists including a trailing newline, curly quotes, an unclosed leading ‘ (as in ‘tis) that still splits on the comma, and a warning plus one-click split when a mostly line-based list still contains `Snow, Sled, Cocoa, Elf, Mittens`, the 19 MB split helper, a ledger with no email column, and the Lemon Squeezy license check with a mocked `fetch` (activate only on submit, validate, no second activation when validate returns 404 or `instance_id not found`, store/product/variant mismatch, activation limit, disabled or refunded, offline grace that rejects a future or +365 day timestamp, deactivate, and a test-mode key refused on a live store or on a build without the test checkout). The browser test activates a mocked key, clears the key box, shows “Key ending in …”, reloads, validates, and deactivates. Remove unlock and Clear my data call deactivate first. A free-card PDF from that run contains no “Test mode”, no Lemon Squeezy address, and no “Get Pro.”
 
 ## Tester licensing pass
 
@@ -43,8 +43,8 @@ These still need a person, on purpose:
 
 - A real printer, at 100% / Actual size, confirming the call-sheet square is 1 inch.
 - A production key, created with `tools/make-keys.mjs` and stored outside the repo, then swapped in before any sale. The committed key is test-only.
-- A real HEIC photo from a phone. The suite uploads a file that is not a real HEIC and checks the explanation. The page policy blocks the HEIC library’s dynamic code, so a photo the browser itself cannot decode gets that explanation. `heic2any` stays bundled for a browser that allows it.
-- A live Lemon Squeezy purchase. The test checkout URL is compiled into dev and `VITE_LS_QA=1` builds only. A normal production build shows “Pro coming soon”, does not link the checkout, and `dist/` must not contain the test checkout URL or `lstest`. The Pages deploy cannot set `VITE_LS_QA`. A live store rejects `license_key.test_mode`. Unit tests mock the License API. A real test-mode key still has to be bought with card `4242 4242 4242 4242`.
+- A real HEIC photo from a phone. The suite uploads `tests/fixtures/tiny.heic` on the dev server and on the built site, and a file that is not a real HEIC to check the explanation.
+- A live Lemon Squeezy purchase. The test checkout URL is compiled into dev and `VITE_LS_QA=1` builds only. A normal production build shows “Pro coming soon”, does not link the checkout, and `dist/` must not contain the test checkout URL or `lstest`. That same bundle must still check `license_key.test_mode`. The store, product, and variant ids stay in the bundle because they are the license allowlist. The Pages deploy cannot set `VITE_LS_QA`. Mode `"test"` can still deploy. Unit tests mock the License API. A real test-mode key still has to be bought with card `4242 4242 4242 4242`.
 - The Pages deploy itself. It runs only after Tests succeeds for a push to this repository's `main`. A pull request, including one from a fork whose branch is named `main`, does not deploy. A manual run has to be started from `main`. The job refuses to publish while `KEY_STATUS` is not `"production"`.
 - The Etsy listing itself, and a manual look at an uploaded custom-order PDF in Etsy’s preview.
 - Lighthouse. Not run in this environment.

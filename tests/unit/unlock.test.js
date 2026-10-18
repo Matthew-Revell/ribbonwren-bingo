@@ -172,9 +172,14 @@ describe("verify", () => {
     }, "")).toMatch(/test store id/);
     expect(liveModeBlockReason(live, `checkout ${TEST_CHECKOUT_ID}`)).toMatch(/test checkout URL/);
     expect(liveModeBlockReason({ ...live, lemonSqueezy: { ...live.lemonSqueezy, mode: "test" } }, TEST_CHECKOUT_ID)).toBe("");
-    expect(distBlockReason("var app = {}")).toBe("");
+    expect(distBlockReason("var app = {}")).toMatch(/test_mode/);
+    expect(distBlockReason("license_key.test_mode")).toBe("");
     expect(distBlockReason(`buy/${TEST_CHECKOUT_ID}`)).toMatch(/test checkout URL/);
     expect(distBlockReason("lstest")).toMatch(/lstest/);
+    expect(liveModeBlockReason({
+      purchaseUrl: "",
+      lemonSqueezy: { mode: "test", storeId: TEST_STORE_ID, productId: TEST_PRODUCT_ID, variantIds: [TEST_VARIANT_ID] },
+    }, "")).toBe("");
   });
 
   it("publishes a test public key with no private material", () => {

@@ -5,7 +5,7 @@
  * A failed connection can keep Pro unlocked for LEMON_OFFLINE_GRACE_MS
  * after the last successful network check. The buyer name and email are not kept.
  */
-import { siteConfig } from "../config.js";
+import { includeTestCheckout as compiledTestCheckout, siteConfig } from "../config.js";
 
 const API = "https://api.lemonsqueezy.com/v1/licenses";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -144,6 +144,16 @@ function offlineResult(instanceId, validatedAt) {
   };
 }
 
+function rejectsTestKeys(config, options) {
+  const included = options.includeTestCheckout ?? compiledTestCheckout;
+  return config.mode === "live" || !included;
+}
+
+async function releaseInstance(raw, instanceId, fetchFn) {
+  if (!instanceId) return;
+  await postLicense("deactivate", { license_key: raw, instance_id: instanceId }, fetchFn);
+}
+
 function trustedActivation(key, stored) {
   if (!stored || stored.provider !== "lemonsqueezy") return null;
   if (!sameLicenseKey(stored.code, key)) return null;
@@ -172,6 +182,14 @@ export async function verifyLemonSqueezyLicense(key, options = {}) {
   const instanceId = trusted?.instanceId || "";
   if (!instanceId && !options.allowActivate) return fail("lemon-instance");
   const fetchFn = options.fetch || globalThis.fetch;
+  const rejectTest = rejectsTestKeys(config, options);
+  if (!instanceId && options.allowActivate && rejectTest) {
+    // Learn test_mode before spending an activation. Validate with no
+    // instance id does not create one. A network failure falls through
+    // and the activate response is checked below.
+    const preview = await postLicense("validate", { license_key: raw }, fetchFn);
+    if (!preview.network && preview.json?.license_key?.test_mode === true) return fail("lemon-test");
+  }
   const action = instanceId ? "validate" : "activate";
   const fields = instanceId
     ? { license_key: raw, instance_id: instanceId }
@@ -185,10 +203,8 @@ export async function verifyLemonSqueezyLicense(key, options = {}) {
     // Do not spend a new activation. The buyer has to paste the key again.
     return fail("lemon-instance");
   }
-  if (config.mode === "live" && json?.license_key?.test_mode === true) {
-    if (action === "activate" && json.instance?.id) {
-      await postLicense("deactivate", { license_key: raw, instance_id: json.instance.id }, fetchFn);
-    }
+  if (rejectTest && json?.license_key?.test_mode === true) {
+    await releaseInstance(raw, json?.instance?.id || instanceId, fetchFn);
     return fail("lemon-test");
   }
   if (hasMeta(json.meta) && !metaMatches(json.meta, config)) {

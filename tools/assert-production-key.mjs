@@ -43,12 +43,17 @@ export function liveModeBlockReason(config, configSource = "") {
 }
 
 export function distBlockReason(text) {
-  const hits = [];
   const source = String(text || "");
-  if (source.includes(TEST_CHECKOUT_ID)) hits.push("the test checkout URL");
-  if (source.includes("lstest")) hits.push("the lstest flag");
-  if (!hits.length) return "";
-  return `The built site still contains ${hits.join(" and ")}.`;
+  const problems = [];
+  const hasCheckout = source.includes(TEST_CHECKOUT_ID);
+  if (hasCheckout) problems.push("the test checkout URL");
+  if (source.includes("lstest")) problems.push("the lstest flag");
+  let message = problems.length ? `The built site still contains ${problems.join(" and ")}.` : "";
+  if (!hasCheckout && !source.includes("test_mode")) {
+    const missing = "The built site leaves out the test checkout but does not check license_key.test_mode.";
+    message = message ? `${message} ${missing}` : missing;
+  }
+  return message;
 }
 
 function readDist(dir) {

@@ -12,13 +12,21 @@
  * has the test store id, product id, variant id, or checkout URL.
  * The Test mode marker appears only next to the test checkout link.
  *
+ * The store, product, and variant ids stay in every build, including one
+ * that omits the test checkout. Unlock compares them with meta from the
+ * License API. They are not a secret: that API returns them, and this
+ * repository is public. Removing them would reject every key as not
+ * configured. The checkout URL is what lets someone buy a test key, and
+ * those keys are rejected when the URL is not in the build. mode "test"
+ * can still deploy so the page can say "Pro coming soon".
+ *
  * shopUrl is an optional link on free-card footers. Leave it empty to print
  * the footer with no web address. Do not put a Pro sales link here.
  *
  * externalCodeType "lemonsqueezy" accepts a license key beside signed codes.
  */
 const livePurchaseUrl = "";
-const includeTestCheckout = typeof __INCLUDE_TEST_CHECKOUT__ !== "undefined" && __INCLUDE_TEST_CHECKOUT__;
+export const includeTestCheckout = typeof __INCLUDE_TEST_CHECKOUT__ !== "undefined" && __INCLUDE_TEST_CHECKOUT__;
 
 export const siteConfig = {
   siteName: "Ribbonwren Bingo",
@@ -49,10 +57,11 @@ export function purchaseHref() {
 
 /**
  * The public site shows the checkout only when the store mode is live.
- * Test mode stays "Pro coming soon" on a production build. npm run dev
- * shows the test link. The QA query flag is compiled in only for dev and
- * for a VITE_LS_QA=1 build, and it is ignored unless dev or qaBuild is set.
- * Visitors cannot turn the test checkout on.
+ * Test mode stays "Pro coming soon" on a normal production build.
+ * npm run dev shows the test link. A VITE_LS_QA=1 build is not dev, so the
+ * page passes qaBuild and ?lstest=1 shows the test link on that build.
+ * The flag and the URL are left out of a normal production build, so
+ * visitors cannot turn the test checkout on.
  */
 export function checkoutHref({
   mode = siteConfig.lemonSqueezy?.mode,
