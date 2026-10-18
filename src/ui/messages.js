@@ -60,6 +60,12 @@ export function unlockError(reason) {
   if (reason === "revoked") return "This code has been revoked.";
   if (reason === "empty") return "Enter an unlock code.";
   if (reason === "not-configured") return "That code type isn't available yet.";
+  if (reason === "lemon-invalid") return "That license key isn't valid. Check the key from your receipt and try again.";
+  if (reason === "lemon-limit") return "This key is already active on 3 devices. Deactivate one, then try again.";
+  if (reason === "lemon-disabled") return "This key is disabled or was refunded, so it can't unlock Pro.";
+  if (reason === "lemon-mismatch") return "That key isn't for Ribbonwren Bingo Pro.";
+  if (reason === "lemon-network") return "The license check couldn't connect. Check your connection and try again.";
+  if (reason === "lemon-instance") return "This device is no longer activated for that key. Paste the key again.";
   return "This code isn't valid.";
 }
 
