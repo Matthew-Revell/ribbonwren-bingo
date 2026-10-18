@@ -8,7 +8,12 @@ import { makeSeed } from "./core/rng.js";
 import { prepareImageFile, MAX_PICTURES } from "./pdf/images.js";
 import { KEY_STATUS, PUBLIC_KEY } from "./unlock/public-key.js";
 import { loadRevokedIds, verifyCode } from "./unlock/verify.js";
-import { verifyLemonSqueezyLicense } from "./unlock/lemonsqueezy.js";
+import {
+  deactivateLemonSqueezyLicense,
+  licenseStorageRecord,
+  sameLicenseKey,
+  verifyLemonSqueezyLicense,
+} from "./unlock/lemonsqueezy.js";
 import { clearAppData, clearLegacyUnlock, clearUnlock, loadDraft, loadLegacyUnlock, loadUnlock, saveDraft, saveUnlock } from "./unlock/storage.js";
 import { assessForm } from "./ui/form.js";
 import { renderPreview } from "./ui/preview.js";
@@ -99,15 +104,24 @@ function showMessages(result) {
 function renderProOffer() {
   const offer = $("pro-offer");
   offer.replaceChildren();
+  if (siteConfig.lemonSqueezy?.mode === "test") {
+    const marker = document.createElement("p");
+    marker.className = "test-mode";
+    marker.id = "pro-test-mode";
+    marker.textContent = "Test mode";
+    offer.append(marker);
+  }
   const href = purchaseHref();
   if (href) {
     const link = document.createElement("a");
     link.className = "button";
     link.href = href;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
     link.textContent = "Get Pro";
     link.id = "get-pro";
     const note = document.createElement("p");
-    note.textContent = `Lifetime Pro is ${siteConfig.proPrice}.`;
+    note.textContent = `Lifetime Pro is ${siteConfig.proPrice}. Your receipt includes a license key. Paste it under Enter unlock code.`;
     offer.append(link, note);
   } else {
     const strong = document.createElement("strong");
@@ -128,6 +142,8 @@ function renderUnlock() {
   $("picture-lock").textContent = picturesOn
     ? "Pictures stay on this device. Add a caption under a photo if you want one."
     : "Pictures are part of Pro.";
+  const deactivate = $("deactivate-device");
+  if (deactivate) deactivate.hidden = unlock?.payload?.provider !== "lemonsqueezy";
   if (!unlock) {
     node.hidden = true;
     node.textContent = "";
@@ -308,20 +324,53 @@ async function onPictures(event) {
   if (messages[0]) $("pictures-msg").textContent = messages[0];
 }
 
+function setUnlockMessage(text, kind = "error") {
+  const node = $("unlock-msg");
+  node.className = kind === "error" ? "field-msg error" : "field-msg";
+  node.textContent = text || "";
+}
+
 async function acceptCode(code) {
+  const trimmed = String(code || "").trim();
+  const stored = loadUnlock("pro");
+  const same = stored && sameLicenseKey(stored.code, trimmed) ? stored : null;
   const revokedIds = await loadRevokedIds(`${import.meta.env.BASE_URL}revoked.json`);
-  const result = await verifyCode(code, {
+  const result = await verifyCode(trimmed, {
     publicKey: PUBLIC_KEY,
     revokedIds,
     externalVerify: externalVerify(),
+    instanceId: same?.instanceId || "",
+    validatedAt: same?.validatedAt || 0,
   });
-  $("unlock-msg").textContent = result.ok ? "" : unlockError(result.reason);
+  setUnlockMessage(result.ok ? "" : unlockError(result.reason));
   if (!result.ok) return false;
-  unlock = { code, payload: result.payload };
-  saveUnlock({ code }, result.payload.tier === "owner" ? "owner" : "pro");
+  unlock = { code: trimmed, payload: result.payload };
+  if (result.payload?.provider === "lemonsqueezy") {
+    saveUnlock(licenseStorageRecord(trimmed, result), "pro");
+  } else {
+    saveUnlock({ code: trimmed }, result.payload.tier === "owner" ? "owner" : "pro");
+  }
   renderUnlock();
   updatePreview();
   return true;
+}
+
+async function deactivateDevice() {
+  const stored = loadUnlock("pro");
+  if (unlock?.payload?.provider !== "lemonsqueezy" || !stored?.instanceId) {
+    setUnlockMessage(unlockError("lemon-invalid"));
+    return;
+  }
+  const result = await deactivateLemonSqueezyLicense(stored.code, stored.instanceId);
+  if (!result.ok) {
+    setUnlockMessage(unlockError(result.reason));
+    return;
+  }
+  clearUnlock("pro");
+  unlock = null;
+  renderUnlock();
+  updatePreview();
+  setUnlockMessage("This device was deactivated. That frees one activation.", "ok");
 }
 
 async function bootUnlock() {
@@ -511,6 +560,7 @@ function bind() {
   });
   $("picture-input").addEventListener("change", onPictures);
   $("unlock-button").addEventListener("click", () => acceptCode($("unlock-code").value.trim()));
+  $("deactivate-device").addEventListener("click", () => deactivateDevice());
   $("remove-unlock").addEventListener("click", () => {
     clearUnlock(unlock?.payload?.tier === "owner" ? "owner" : "pro");
     clearLegacyUnlock();

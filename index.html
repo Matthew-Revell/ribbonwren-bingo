@@ -28,7 +28,7 @@
       <p class="tagline">Cozy all year, merry when it counts.</p>
       <h1>Ribbonwren Bingo</h1>
       <p class="lede">Paste a list, pick a grid, and download printable cards plus a call sheet. The PDF is made on this device. There is no account.</p>
-      <div id="pro-offer" class="pro-note"></div>
+      <div id="pro-offer" class="pro-note" role="region" aria-label="Pro"></div>
       <p id="licensed" class="status-pill" hidden></p>
       <div class="layout">
         <form id="game-form" class="panel">
@@ -139,13 +139,14 @@
           <p id="download-status" role="status"></p>
           <p id="open-pdf" hidden><a id="open-pdf-link" target="_blank" rel="noopener">Open the PDF</a> if the download did not start.</p>
           <fieldset>
-            <legend>Unlock code</legend>
+            <legend>Enter unlock code</legend>
             <div class="field">
-              <label for="unlock-code">Paste a code</label>
+              <label for="unlock-code">Paste a code or license key</label>
               <input id="unlock-code" type="text" autocomplete="off" spellcheck="false">
             </div>
             <div class="actions">
               <button type="button" class="secondary" id="unlock-button">Unlock</button>
+              <button type="button" class="quiet" id="deactivate-device" hidden>Deactivate this device</button>
               <button type="button" class="quiet" id="remove-unlock">Remove unlock from this browser</button>
             </div>
             <p id="unlock-msg" class="field-msg error"></p>

@@ -68,7 +68,7 @@ describe("verify", () => {
     expect((await verifyCode("LS-LICENSE", { publicKey: PUBLIC_KEY })).reason).toBe("not-configured");
   });
 
-  it("does not call a payment processor", async () => {
+  it("does not call the license API for a signed code or a non-key", async () => {
     let calls = 0;
     const original = globalThis.fetch;
     globalThis.fetch = async () => {
@@ -77,7 +77,12 @@ describe("verify", () => {
     };
     try {
       const result = await verifyLemonSqueezyLicense("license");
-      expect(result).toEqual({ ok: false, reason: "not-configured" });
+      expect(result).toEqual({ ok: false, reason: "lemon-invalid" });
+      const { code } = await signed();
+      expect((await verifyCode(code, {
+        publicKey: PUBLIC_KEY,
+        externalVerify: verifyLemonSqueezyLicense,
+      })).ok).toBe(true);
       expect(calls).toBe(0);
     } finally {
       globalThis.fetch = original;

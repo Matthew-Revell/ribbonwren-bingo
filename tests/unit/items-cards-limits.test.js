@@ -309,10 +309,16 @@ describe("layout", () => {
 });
 
 describe("delivery rules", () => {
-  it("flags links and Pro wording, and the purchase URL starts empty", () => {
-    expect(siteConfig.purchaseUrl).toBe("");
-    expect(siteConfig.externalCodeType).toBe(null);
-    expect(purchaseHref()).toBe(null);
+  it("flags links and Pro wording, and Get Pro points at the test checkout", () => {
+    expect(siteConfig.purchaseUrl).toBe("https://ribbonwren.lemonsqueezy.com/checkout/buy/d376910a-cd10-472a-a1bb-539ca3020be7");
+    expect(siteConfig.externalCodeType).toBe("lemonsqueezy");
+    expect(siteConfig.lemonSqueezy).toEqual({
+      storeId: 500556,
+      productId: 1449237,
+      variantIds: [2262220],
+      mode: "test",
+    });
+    expect(purchaseHref()).toBe(siteConfig.purchaseUrl);
     expect(deliveryIssuesIn(["https://example.com", "Upgrade to Pro", "scan the QR"]).length).toBe(3);
     expect(findDeliveryIssues("example.com")).toContain("domain");
     expect(findDeliveryIssues("ribbonwren.com")).toContain("domain");

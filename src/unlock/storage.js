@@ -17,7 +17,11 @@ export function unlockStorageKey(tier) {
 }
 
 export function saveUnlock(record, tier) {
-  localStorage.setItem(unlockStorageKey(tier), JSON.stringify({ code: record?.code || "" }));
+  const stored = { code: record?.code || "" };
+  if (record?.provider) stored.provider = record.provider;
+  if (record?.instanceId) stored.instanceId = record.instanceId;
+  if (Number.isFinite(record?.validatedAt)) stored.validatedAt = record.validatedAt;
+  localStorage.setItem(unlockStorageKey(tier), JSON.stringify(stored));
 }
 
 export function loadUnlock(tier) {

@@ -28,9 +28,23 @@ Pro, once a code is unlocked in the browser: up to 500 cards, pictures in the sq
 
 ## Pro is not an Etsy product
 
-Etsy does not allow selling access codes or licenses to software. Pro is sold only from this site, through a checkout that is not chosen yet (Lemon Squeezy or Gumroad are the two candidates).
+Etsy does not allow selling access codes or licenses to software. Pro is sold only from this site, through Lemon Squeezy. Etsy-audience PDFs still cannot contain a checkout link, an upgrade pitch, or the words “Test mode.”
 
-`src/config.js` has one purchase URL, `purchaseUrl`. While it is empty, the public page shows **Pro coming soon** and does not link anywhere. When checkout exists, set `purchaseUrl` to that page. Nothing else in the app needs to change.
+`src/config.js` is the only place that knows the checkout. `purchaseUrl` is the Get Pro link. While it is empty, the public page shows **Pro coming soon** and does not link anywhere. `lemonSqueezy` holds `storeId`, `productId`, `variantIds`, and `mode`.
+
+These values are the **test** store (store `500556`, product `1449237`, variant `2262220`). While `mode` is `"test"`, the Pro box shows a small Test mode marker. That marker is not drawn on a PDF.
+
+To go live, edit only `src/config.js`: replace `purchaseUrl` with the live checkout URL, replace the ids inside `lemonSqueezy`, and set `mode` to `"live"`. The marker disappears. No other file needs a new id.
+
+## Lemon Squeezy license keys
+
+A license key is a UUID. The browser calls the public License API with no API key. The first time, it activates the key as `Ribbonwren Bingo - <browser>` and stores the instance id. Later visits validate that instance. A key is accepted only when `meta.store_id`, `meta.product_id`, and `meta.variant_id` match `lemonSqueezy`. The page stores the key, the instance id, and the time of the last successful check. It does not store the buyer’s name or email.
+
+If a later check cannot connect, Pro stays unlocked for 14 days after that last success. The first activation has no offline grace. **Deactivate this device** calls the deactivate endpoint and frees one of the 3 activations. Remove unlock only forgets this browser.
+
+The License API responds with `Access-Control-Allow-Origin: *`, including to `Origin: https://matthew-revell.github.io`, so GitHub Pages can call it directly. No backend is required.
+
+A test purchase: open the checkout, use card `4242 4242 4242 4242`, any future expiry, any CVC, and any name. The receipt’s license key goes in **Enter unlock code**. Deactivate the device when you are done so the 3-activation test key is not used up.
 
 The signed-code generator on the owner page is for owner codes and for future website sales. The license PDF (`ribbonwren-bingo-license-<order>.pdf`) is for those website sales. It must not be uploaded to a marketplace or described as a marketplace delivery.
 
@@ -42,7 +56,7 @@ Owner word lists are one item per line. Commas and semicolons split items when m
 
 ## Unlock codes
 
-A code is a signed payload. The browser checks the signature with the public key in `src/unlock/public-key.js`. It does not call a payment processor. A second code type can be plugged in later by setting `externalCodeType` and passing a verifier. That path is off.
+A signed code is still checked offline with the public key in `src/unlock/public-key.js`. A UUID license key takes the Lemon Squeezy path above. Owner codes stay on the signed path.
 
 The repository includes a **TEST/DEV** key pair so the tests can run. The public page shows a banner while `KEY_STATUS` is not `"production"`. Do not sell codes from this copy.
 

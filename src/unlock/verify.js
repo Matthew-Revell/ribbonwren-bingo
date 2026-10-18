@@ -52,8 +52,8 @@ export async function verifySignedCode(code, options = {}) {
 }
 
 /**
- * Signed codes contain a dot. Anything else is reserved for a second code
- * type (phase 2). That path is not configured until siteConfig says so.
+ * Signed codes contain a dot. A Lemon Squeezy key is a UUID with no dot.
+ * That path runs only when the caller passes externalVerify.
  */
 export async function verifyCode(code, options = {}) {
   const raw = String(code ?? "").trim();

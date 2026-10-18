@@ -28,6 +28,13 @@ describe("public copy and privacy boundaries", () => {
     expect(readFileSync("privacy.html", "utf8")).not.toMatch(/etsy/i);
   });
 
+  it("keeps checkout and test mode out of the PDF code", () => {
+    const pdf = files("src/pdf").map((path) => readFileSync(path, "utf8")).join("\n");
+    expect(pdf.toLowerCase()).not.toContain("lemonsqueezy");
+    expect(pdf).not.toContain("Test mode");
+    expect(pdf).not.toContain("purchaseUrl");
+  });
+
   it("keeps the two-day promise and marketplace warning on the owner page only", () => {
     const owner = readFileSync("src/ui/owner-messages.js", "utf8");
     expect(owner).toMatch(/2 business days/);

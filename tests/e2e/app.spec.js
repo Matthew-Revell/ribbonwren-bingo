@@ -29,7 +29,10 @@ test("makes a word-card PDF and blocks 11 cards on the free tier", async ({ page
   });
   await page.goto("./index.html");
   await expect(page.getByRole("heading", { name: "Ribbonwren Bingo" })).toBeVisible();
-  await expect(page.getByText("Pro coming soon")).toBeVisible();
+  await expect(page.locator("#pro-test-mode")).toHaveText("Test mode");
+  await expect(page.locator("#get-pro")).toHaveAttribute("href", "https://ribbonwren.lemonsqueezy.com/checkout/buy/d376910a-cd10-472a-a1bb-539ca3020be7");
+  await expect(page.locator("#get-pro")).toHaveAttribute("target", "_blank");
+  await expect(page.getByText("Pro coming soon")).toHaveCount(0);
   await page.getByRole("button", { name: "Use a sample list" }).click();
   await expect(page.locator("#words")).toHaveValue(/cocoa/);
   await expect(page.locator("#preview")).not.toContainText("Your first card will show up here.");
@@ -42,6 +45,9 @@ test("makes a word-card PDF and blocks 11 cards on the free tier", async ({ page
   ]);
   const saved = await pdfPages(download);
   expect(saved.pdf.getPageCount()).toBeGreaterThanOrEqual(9);
+  expect(saved.text.toLowerCase()).not.toContain("test mode");
+  expect(saved.text.toLowerCase()).not.toContain("lemonsqueezy");
+  expect(saved.text).not.toContain("Get Pro");
   expect([...hosts].every((host) => host.startsWith("127.0.0.1") || host.startsWith("localhost"))).toBe(true);
 });
 
@@ -309,6 +315,55 @@ test("counts comma-separated items and warns before printing a sales pitch", asy
   ]);
   const qr = await pdfPages(qrDownload);
   expect(qr.text).toContain("QR code menu");
+});
+
+test("unlocks a Lemon Squeezy test key and deactivates this device", async ({ page }) => {
+  const key = "38b1460a-5104-4067-a91d-77b872934d51";
+  const instance = "47596ad9-a811-4ebf-ac8a-03fc7b6d2a17";
+  const license = {
+    activated: true,
+    valid: true,
+    error: null,
+    license_key: { id: 42, status: "active", key, activation_limit: 3, activation_usage: 1, expires_at: null },
+    instance: { id: instance, name: "Ribbonwren Bingo - browser" },
+    meta: {
+      store_id: 500556,
+      product_id: 1449237,
+      variant_id: 2262220,
+      customer_name: "Sarah Buyer",
+      customer_email: "sarah.buyer@example.com",
+    },
+  };
+  const hits = [];
+  await page.route("https://api.lemonsqueezy.com/v1/licenses/**", async (route) => {
+    hits.push(new URL(route.request().url()).pathname);
+    const path = hits.at(-1);
+    if (path.endsWith("/deactivate")) {
+      await route.fulfill({ json: { deactivated: true, error: null } });
+      return;
+    }
+    await route.fulfill({ json: license });
+  });
+  await page.goto("./index.html");
+  await expect(page.getByRole("region", { name: "Pro" })).toBeVisible();
+  await page.locator("#unlock-code").fill(key);
+  await page.locator("#unlock-button").click();
+  await expect(page.locator("#licensed")).toHaveText("Pro unlocked");
+  await expect(page.locator("#card-count")).toHaveAttribute("max", "500");
+  await expect(page.getByRole("button", { name: "Deactivate this device" })).toBeVisible();
+  const stored = await page.evaluate(() => localStorage.getItem("rwb-unlock-pro"));
+  expect(stored).toContain(instance);
+  expect(stored).not.toContain("sarah.buyer@example.com");
+  expect(stored).not.toContain("Sarah Buyer");
+  await page.reload();
+  await expect(page.locator("#licensed")).toHaveText("Pro unlocked");
+  expect(hits.some((path) => path.endsWith("/validate"))).toBe(true);
+  await page.getByRole("button", { name: "Deactivate this device" }).click();
+  await expect(page.locator("#licensed")).toBeHidden();
+  await expect(page.locator("#unlock-msg")).toContainText("deactivated");
+  expect(hits.some((path) => path.endsWith("/deactivate"))).toBe(true);
+  const after = await page.evaluate(() => localStorage.getItem("rwb-unlock-pro"));
+  expect(after).toBeNull();
 });
 
 test("accepts a large photo, a WebP, and several pictures", async ({ page }) => {
