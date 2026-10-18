@@ -261,6 +261,38 @@ describe("pdf cards", () => {
     });
     expect(linked.ok).toBe(false);
     expect(linked.error).toBe("etsy-text");
+    const phrase = await renderWords({
+      items: ["Join.us", ...list.slice(1)],
+      count: 1,
+      grid: 3,
+      freeSpace: true,
+      tier: "owner",
+      audience: "etsy",
+    });
+    expect(phrase.ok).toBe(false);
+    expect(phrase.error).toBe("etsy-wording");
+    const printedPhrase = await renderWords({
+      items: ["Join.us", ...list.slice(1)],
+      count: 1,
+      grid: 3,
+      freeSpace: true,
+      tier: "owner",
+      audience: "etsy",
+      allowWording: true,
+    });
+    expect(printedPhrase.ok).toBe(true);
+    expect(inspect(printedPhrase.bytes).text).toContain("Join.us");
+    const qr = await renderWords({
+      items: ["scan the QR", ...list.slice(1)],
+      count: 1,
+      grid: 3,
+      freeSpace: true,
+      tier: "owner",
+      audience: "etsy",
+      allowWording: true,
+    });
+    expect(qr.ok).toBe(false);
+    expect(qr.error).toBe("etsy-text");
   });
 
   it("flows 300 call-sheet items onto more than one page", async () => {

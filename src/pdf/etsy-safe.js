@@ -2,14 +2,22 @@
  * Etsy delivery PDFs (owner-mode custom orders, and anything meant for the
  * shop) must not contain links, email addresses, or web addresses.
  * Words such as Pro, Unlock, and Upgrade are warnings: the owner can
- * print them after an explicit override. Buyer text, the seed, and the
+ * print them after an explicit override. A single word plus a short TLD
+ * such as Join.us is the same kind of warning, because it is often a
+ * sentence and not a site. Real hosts, paths, www, emails, QR, Lemon
+ * Squeezy, and Gumroad stay a hard block. Buyer text, the seed, and the
  * free-space line are all checked. Text is normalized with NFKC first so
  * full-width lookalikes such as ｈｔｔｐｓ:// are caught.
  */
-const HARD = new Set(["url", "www", "domain", "email"]);
+const HARD = new Set(["url", "www", "domain", "email", "qr", "lemon", "gumroad"]);
+// Short TLDs that are also ordinary words. "Mr.Me" and "Join.us" can be a
+// sentence, so the owner may print them. com, tv, ee, and the rest stay blocked.
+const WORD_TLDS = new Set(["us", "me", "co"]);
+const REAL_TLDS = "com|net|org|io|co|uk|ca|us|shop|store|app|dev|info|biz|me|etsy|ly|gl|ee|xyz|site|link|tv|gg";
 
-// A hostname with no scheme, such as example.com, bit.ly/x, or pages.github.io.
-const BARE_DOMAIN = /\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:com|net|org|io|co|uk|ca|us|shop|store|app|dev|info|biz|me|etsy|ly|gl)\b/i;
+// A hostname with no scheme, such as example.com, linktr.ee, or twitch.tv.
+const BARE_DOMAIN = new RegExp(`\\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+(?:${REAL_TLDS})\\b`, "i");
+const SPELLED_DOMAIN = new RegExp(`\\b(?:[a-z0-9-]+\\s+)?dot\\s+(?:${REAL_TLDS})\\b`, "i");
 const EMAIL = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i;
 
 const RULES = [
@@ -29,13 +37,39 @@ function normalized(text) {
   return String(text ?? "").normalize("NFKC");
 }
 
+/** A lone "Join.us" can be a sentence. Hosts, paths, and other TLDs cannot. */
+function domainIssueCodes(value) {
+  const re = new RegExp(BARE_DOMAIN.source, "gi");
+  let hard = false;
+  let soft = false;
+  for (const match of value.matchAll(re)) {
+    const token = match[0];
+    const after = value[match.index + token.length] || "";
+    const parts = token.split(".");
+    const label = parts.length === 2 ? parts[0] : "";
+    const tld = (parts[parts.length - 1] || "").toLowerCase();
+    const wordLike = /^[A-Za-z][A-Za-z'-]*$/.test(label)
+      && WORD_TLDS.has(tld)
+      && after !== "/"
+      && after !== ".";
+    if (wordLike) soft = true;
+    else hard = true;
+  }
+  if (hard) return ["domain"];
+  if (soft) return ["domain-word"];
+  return [];
+}
+
 export function findDeliveryIssues(text) {
   const issues = [];
   const value = normalized(text);
   for (const rule of RULES) {
+    if (rule.code === "domain") continue;
     if (rule.re.test(value)) issues.push(rule.code);
   }
-  return issues;
+  if (SPELLED_DOMAIN.test(value)) issues.push("domain");
+  issues.push(...domainIssueCodes(value));
+  return [...new Set(issues)];
 }
 
 export function deliveryIssuesIn(strings) {
@@ -68,6 +102,7 @@ export function scrubMeta(text) {
     .replace(/https?:\/\/\S+/gi, "")
     .replace(/\bwww\.\S+/gi, "")
     .replace(new RegExp(EMAIL.source, "gi"), "")
+    .replace(new RegExp(SPELLED_DOMAIN.source, "gi"), "")
     .replace(new RegExp(BARE_DOMAIN.source, "gi"), "")
     .replace(/\s+/g, " ")
     .trim();

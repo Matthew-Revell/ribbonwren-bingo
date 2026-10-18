@@ -1,4 +1,5 @@
 import { validateSupply, parseItems, freeSpaceAllowed, neededCount } from "../core/items.js";
+import { normalizeSeed } from "../core/rng.js";
 import { getLimits, themeAllowed, validateCardCount } from "../core/limits.js";
 import {
   cardCountMessage,
@@ -36,8 +37,11 @@ export function assessForm(input, tier) {
     }
   }
   if (!count.ok) errors.push({ field: "card-count", text: cardCountMessage(count) });
-  if (!String(input.seed ?? "").trim()) {
-    errors.push({ field: "seed", text: "Enter a seed to reprint this game." });
+  if (!/[A-Z0-9]/.test(normalizeSeed(input.seed))) {
+    errors.push({
+      field: "seed",
+      text: "Enter a seed with at least one letter or digit. Dashes and spaces are ignored.",
+    });
   }
   if (input.requireOrder && !String(input.order ?? "").trim()) {
     errors.push({ field: "order", text: "Enter the order number." });

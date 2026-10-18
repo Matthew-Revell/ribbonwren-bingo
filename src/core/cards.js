@@ -2,6 +2,7 @@ import {
   ALGORITHM,
   cardKey,
   itemListHash,
+  normalizeSeed,
   settingsKey,
   shuffle,
 } from "./rng.js";
@@ -43,6 +44,9 @@ export function buildCards({
   const total = Number(count);
   if (!Number.isInteger(total) || total < 1) {
     return { ok: false, error: { code: "bad-count" } };
+  }
+  if (!/[A-Z0-9]/.test(normalizeSeed(seed))) {
+    return { ok: false, error: { code: "bad-seed" } };
   }
 
   const pool = deduped(items);

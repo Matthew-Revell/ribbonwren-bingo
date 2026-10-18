@@ -23,11 +23,11 @@ function sampleOf(hits) {
 }
 
 export function etsyBlockedMessage(hits) {
-  return `This custom-order PDF can't include web addresses, email addresses, or links. Edit this text first: ${sampleOf(hits)}`;
+  return `This custom-order PDF can't include web addresses, email addresses, links, QR codes, or checkout names such as Lemon Squeezy and Gumroad. Edit this text first: ${sampleOf(hits)}`;
 }
 
 export function wordingWarning(hits) {
-  return `These words can read like a sales pitch (Pro, Unlock, Upgrade). Check the box to print them anyway: ${sampleOf(hits)}`;
+  return `Some of these words can read like a sales pitch (Pro, Unlock, Upgrade) or like a web address (Join.us). Check the box to print them anyway: ${sampleOf(hits)}`;
 }
 
 export function splitTooBigMessage() {

@@ -21,6 +21,9 @@ export function supplyWarning(warning) {
   if (warning.code === "many-items") {
     return "That's a long list. The call sheet will run onto several pages.";
   }
+  if (warning.code === "comma-item") {
+    return `"${clip(warning.item)}" still has commas or semicolons, so it stays one square. Use Split on commas if each piece should be its own square.`;
+  }
   return "";
 }
 

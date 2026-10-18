@@ -14,7 +14,13 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { siteConfig } from "../src/config.js";
+import { PUBLIC_KEY } from "../src/unlock/public-key.js";
 import { buildPayload, importPrivateKey, signPayload } from "../src/unlock/sign.js";
+
+export function ownerKeyMismatch(jwk, publicKey = PUBLIC_KEY) {
+  if (jwk && jwk.x === publicKey.x && jwk.y === publicKey.y) return "";
+  return "This private key does not match the public key in src/unlock/public-key.js. Codes made with it will not unlock this copy of the site. Use the private key for that public key, or replace PUBLIC_KEY before minting.";
+}
 
 export async function ownerCodeFromPrivateJwk(jwk, options = {}) {
   const privateKey = await importPrivateKey(jwk);
@@ -37,6 +43,11 @@ async function main() {
     process.exit(1);
   }
   const jwk = JSON.parse(readFileSync(resolve(keyPath), "utf8"));
+  const mismatch = ownerKeyMismatch(jwk);
+  if (mismatch) {
+    console.error(mismatch);
+    process.exit(1);
+  }
   const minted = await ownerCodeFromPrivateJwk(jwk, {
     name: process.argv[3],
     order: process.argv[4],

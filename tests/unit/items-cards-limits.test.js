@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { buildCards } from "../../src/core/cards.js";
-import { neededCount, parseItems, validateSupply } from "../../src/core/items.js";
+import { forceSplitDelimiters, neededCount, parseItems, validateSupply } from "../../src/core/items.js";
 import { validateCardCount } from "../../src/core/limits.js";
 import { licenseFilename, ownerCardFilename, sanitizeFilename } from "../../src/core/filename.js";
 import { fitEdge, MAX_BYTES, MAX_EDGE, MAX_PICTURES, prepareImageFile } from "../../src/pdf/images.js";
 import { fitAll, fitText } from "../../src/pdf/fit-text.js";
 import { CHECK_INCH, MARGIN, cardSlots, contentRect, pageDimensions, paginateCallSheet, rectsOverlap } from "../../src/pdf/layout.js";
-import { deliveryIssuesIn, findDeliveryIssues } from "../../src/pdf/etsy-safe.js";
+import { deliveryIssuesIn, findDeliveryIssues, partitionDeliveryHits } from "../../src/pdf/etsy-safe.js";
 import { recipeError } from "../../src/core/recipe.js";
 import { ALGORITHM } from "../../src/core/rng.js";
 import { buildDeliveryFiles, splitRanges } from "../../src/pdf/split.js";
@@ -67,6 +67,19 @@ describe("parseItems", () => {
     expect(parseItems('tea, "milk, cookies", cocoa', { mode: "auto" }).items).toEqual(["tea", "milk, cookies", "cocoa"]);
     expect(parseItems('"milk, cookies"\ncocoa', { mode: "auto" }).items).toEqual(["milk, cookies", "cocoa"]);
     expect(parseItems('"milk, cookies"', { mode: "lines" }).items).toEqual(["milk, cookies"]);
+    expect(parseItems("\u201Cmilk, cookies\u201D", { mode: "auto" }).items).toEqual(["milk, cookies"]);
+    expect(parseItems("tea, \u201Cmilk, cookies\u201D, cocoa", { mode: "auto" }).items).toEqual(["tea", "milk, cookies", "cocoa"]);
+  });
+
+  it("warns when a mostly line-based list still has a comma line", () => {
+    const raw = ["cocoa", "Snow, Sled, Cocoa, Elf, Mittens", "paper"].join("\n");
+    const parsed = parseItems(raw, { mode: "auto" });
+    expect(parsed.items).toEqual(["cocoa", "Snow, Sled, Cocoa, Elf, Mittens", "paper"]);
+    expect(parsed.warnings.map((warning) => warning.code)).toContain("comma-item");
+    expect(parsed.warnings.find((warning) => warning.code === "comma-item").item).toBe("Snow, Sled, Cocoa, Elf, Mittens");
+    expect(forceSplitDelimiters(raw).split("\n")).toEqual(["cocoa", "Snow", "Sled", "Cocoa", "Elf", "Mittens", "paper"]);
+    const quoted = parseItems('"milk, cookies"\ncocoa\npaper', { mode: "auto" });
+    expect(quoted.warnings.map((warning) => warning.code)).not.toContain("comma-item");
   });
 });
 
@@ -305,6 +318,32 @@ describe("delivery rules", () => {
     expect(findDeliveryIssues("Pro tip")).toEqual(["pro"]);
     expect(findDeliveryIssues("Unlock")).toEqual(["unlock"]);
     expect(findDeliveryIssues("Upgrade")).toEqual(["upgrade"]);
+    expect(findDeliveryIssues("Join.us")).toEqual(["domain-word"]);
+    expect(findDeliveryIssues("Mr.Me")).toEqual(["domain-word"]);
+    expect(findDeliveryIssues("join.us today")).toEqual(["domain-word"]);
+    expect(findDeliveryIssues("linktr.ee/ribbonwren")).toContain("domain");
+    expect(findDeliveryIssues("twitch.tv/live")).toContain("domain");
+    expect(findDeliveryIssues("discord.gg/cards")).toContain("domain");
+    expect(findDeliveryIssues("example.xyz")).toContain("domain");
+    expect(findDeliveryIssues("example.site")).toContain("domain");
+    expect(findDeliveryIssues("example.shop")).toContain("domain");
+    expect(findDeliveryIssues("example.store")).toContain("domain");
+    expect(findDeliveryIssues("example.link")).toContain("domain");
+    expect(findDeliveryIssues("example dot com")).toContain("domain");
+    expect(findDeliveryIssues("Shop.Com")).toContain("domain");
+    expect(findDeliveryIssues("Shop.Com")).not.toContain("domain-word");
+    expect(findDeliveryIssues("ribbonwren.com")).toContain("domain");
+    expect(findDeliveryIssues("bit.ly/abc123")).not.toContain("domain-word");
+    const parts = partitionDeliveryHits(deliveryIssuesIn([
+      "Join.us",
+      "Pro tip",
+      "scan the QR",
+      "Lemon Squeezy",
+      "see Gumroad",
+      "ribbonwren.com",
+    ]));
+    expect(parts.soft.map((hit) => hit.text)).toEqual(["Join.us", "Pro tip"]);
+    expect(parts.hard.map((hit) => hit.issues[0])).toEqual(["qr", "lemon", "gumroad", "domain"]);
     expect(deliveryIssuesIn(["cocoa", "paper crane", "Ribbonwren Paper Co."])).toEqual([]);
   });
 

@@ -1,5 +1,7 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { bytesToB64url, b64urlToBytes } from "../../src/unlock/codec.js";
 import { buildPayload, canonicalPayload, importPrivateKey, signPayload } from "../../src/unlock/sign.js";
@@ -9,6 +11,7 @@ import { verifyLemonSqueezyLicense } from "../../src/unlock/lemonsqueezy.js";
 import { ledgerCsv, parseLedger } from "../../src/unlock/ledger.js";
 import { loadUnlock, saveUnlock } from "../../src/unlock/storage.js";
 import { TEST_KEY_X, deploymentBlockReason } from "../../tools/assert-production-key.mjs";
+import { ownerKeyMismatch } from "../../tools/make-owner-code.mjs";
 
 const privateJwk = JSON.parse(
   readFileSync(new URL("../fixtures/TEST_DEV_PRIVATE_KEY.json", import.meta.url), "utf8"),
@@ -120,6 +123,23 @@ describe("verify", () => {
     expect(result.payload.tier).toBe("owner");
     expect(result.payload.n).toBe("Matthew");
     expect(result.payload.o).toBe("owner");
+  });
+
+  it("refuses a private key that does not match the committed public key", () => {
+    expect(ownerKeyMismatch(privateJwk)).toBe("");
+    expect(ownerKeyMismatch({ ...privateJwk, x: "not-the-committed-key" })).toMatch(/does not match/);
+    const dir = mkdtempSync(join(tmpdir(), "rwb-key-"));
+    const file = join(dir, "wrong.jwk");
+    writeFileSync(file, JSON.stringify({ ...privateJwk, y: "not-the-committed-key" }));
+    let failed = false;
+    try {
+      execFileSync("node", ["tools/make-owner-code.mjs", file, "Matthew", "owner"], { encoding: "utf8" });
+    } catch (error) {
+      failed = true;
+      expect(error.status).toBe(1);
+      expect(String(error.stderr)).toMatch(/does not match the public key/);
+    }
+    expect(failed).toBe(true);
   });
 
   it("refuses to deploy the test key", () => {

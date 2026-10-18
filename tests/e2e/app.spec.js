@@ -58,10 +58,33 @@ test("keeps the list after reload and clears it", async ({ page }) => {
   expect(stored.filter((key) => key.startsWith("rwb-"))).toEqual([]);
 });
 
+test("clear my data removes an unlock", async ({ page }) => {
+  const code = await codeFor("pro", "Ada", "1009");
+  await page.goto(`./index.html#unlock=${encodeURIComponent(code)}`);
+  await expect(page.locator("#licensed")).toContainText("Licensed to Ada");
+  await page.getByRole("button", { name: "Clear my data" }).click();
+  await expect(page.locator("#licensed")).toBeHidden();
+  await expect(page.locator("#download-status")).toContainText("removed from this browser");
+  await page.reload();
+  await expect(page.locator("#licensed")).toBeHidden();
+});
+
+test("explains when a long phrase will not fit two cards on a page", async ({ page }) => {
+  await page.goto("./index.html");
+  const words = Array.from({ length: 23 }, (_, index) => `word ${index}`);
+  words.push("Supercalifragilisticexpialidocious".repeat(3));
+  await page.locator("#words").fill(words.join("\n"));
+  await page.locator("#per-page").selectOption("2");
+  await page.getByRole("button", { name: "Download PDF" }).click();
+  await expect(page.locator("#words-msg")).toContainText("too long");
+  await expect(page.locator("#words-msg")).toContainText("2 per page");
+});
+
 test("disables the free space on a 4 by 4 grid and labels the fields", async ({ page }) => {
   await page.goto("./index.html");
   await page.getByLabel("4×4").check();
   await expect(page.locator("#free-space")).toBeDisabled();
+  await expect(page.locator("#free-space")).toHaveAttribute("title", /only available for 3×3 and 5×5/);
   const unlabeled = await page.locator("input, textarea, select").evaluateAll((nodes) =>
     nodes.filter((node) => {
       if (node.closest("label")) return false;
@@ -223,6 +246,18 @@ test("counts comma-separated items and warns before printing a sales pitch", asy
   await page.locator("#words").fill(lines);
   await expect(page.locator("#item-count")).toHaveText("36 items");
 
+  const mixed = ["cocoa", "Snow, Sled, Cocoa, Elf, Mittens", "paper", "wool", "stone", "card", "walk", "toast"].join("\n");
+  await page.locator("#words").fill(mixed);
+  await page.getByLabel("3×3").check();
+  await expect(page.locator("#item-count")).toHaveText("8 items");
+  await expect(page.locator("#preview")).toContainText("Snow, Sled, Cocoa, Elf, Mittens");
+  await expect(page.locator("#form-messages")).toContainText("Split on commas");
+  await expect(page.locator("#split-commas")).toBeVisible();
+  await page.locator("#split-commas").click();
+  await expect(page.locator("#item-count")).toHaveText("11 items");
+  await expect(page.locator("#words")).toHaveValue(/Snow\nSled\nCocoa\nElf\nMittens/);
+  await expect(page.locator("#split-commas")).toBeHidden();
+
   const quoted = ['"milk, cookies"', ...Array.from({ length: 7 }, (_, index) => `cup ${index}`)].join("\n");
   await page.locator("#words").fill(quoted);
   await page.locator("#card-count").fill("1");
@@ -244,12 +279,29 @@ test("counts comma-separated items and warns before printing a sales pitch", asy
   ]);
   const saved = await pdfPages(download);
   expect(saved.text).toContain("Pro tip");
+  await page.locator("#words").fill(["Unlock", ...Array.from({ length: 7 }, (_, index) => `cup ${index}`)].join("\n"));
+  await expect(page.locator("#wording-override")).not.toBeChecked();
 
   await page.locator("#words").fill(["ribbonwren.com", ...Array.from({ length: 8 }, (_, index) => `cup ${index}`)].join("\n"));
   await expect(page.locator("#wording-warning")).toContainText("web addresses");
   await expect(page.locator("#wording-row")).toBeHidden();
   await page.getByRole("button", { name: "Make PDF" }).click();
   await expect(page.locator("#order-status")).toContainText("web addresses");
+
+  await page.locator("#words").fill(["Join.us", ...Array.from({ length: 7 }, (_, index) => `cup ${index}`)].join("\n"));
+  await expect(page.locator("#wording-override")).toBeVisible();
+  await page.locator("#wording-override").check();
+  const [phraseDownload] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("button", { name: "Make PDF" }).click(),
+  ]);
+  const phrase = await pdfPages(phraseDownload);
+  expect(phrase.text).toContain("Join.us");
+
+  await page.locator("#words").fill(["scan the QR", ...Array.from({ length: 7 }, (_, index) => `cup ${index}`)].join("\n"));
+  await expect(page.locator("#wording-row")).toBeHidden();
+  await page.getByRole("button", { name: "Make PDF" }).click();
+  await expect(page.locator("#order-status")).toContainText("QR");
 });
 
 test("accepts a large photo, a WebP, and several pictures", async ({ page }) => {

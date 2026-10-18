@@ -60,6 +60,11 @@ describe("shuffle", () => {
     expect(normalizeSeed("KJ4P-92")).toBe("KJ4P92");
     expect(normalizeSeed("KJ4P92")).toBe("KJ4P92");
     expect(normalizeSeed(" kj4p 92 ")).toBe("KJ4P92");
+    expect(normalizeSeed("KJ4P\u201392")).toBe("KJ4P92");
+    expect(normalizeSeed("KJ4P\u201492")).toBe("KJ4P92");
+    expect(normalizeSeed("KJ4P_92")).toBe("KJ4P92");
+    expect(normalizeSeed("---")).toBe("");
+    expect(normalizeSeed("\u2014_\u2013")).toBe("");
     const options = { items: golden.items, grid: 3, freeSpace: true, count: 2 };
     const dashed = buildCards({ ...options, seed: "KJ4P-92" });
     const lower = buildCards({ ...options, seed: "kj4p-92" });
@@ -70,6 +75,12 @@ describe("shuffle", () => {
     expect(cardKey({ seed: "kj4p-92", settings: "g3f0", listHash: "abc", index: 0 })).toBe(
       cardKey({ seed: "KJ4P-92", settings: "g3f0", listHash: "abc", index: 0 }),
     );
+    expect(cardKey({ seed: "KJ4P\u201492", settings: "g3f0", listHash: "abc", index: 0 })).toBe(
+      cardKey({ seed: "KJ4P_92", settings: "g3f0", listHash: "abc", index: 0 }),
+    );
+    const blank = buildCards({ ...options, seed: "---" });
+    expect(blank.ok).toBe(false);
+    expect(blank.error.code).toBe("bad-seed");
   });
 
   it("lands each item in each position within 10 percent over 10,000 shuffles", () => {

@@ -14,6 +14,7 @@ export function neededCount(grid, freeSpace) {
 function normalizeRaw(raw) {
   return String(raw ?? "")
     .replace(SPACE_LIKE, " ")
+    .replace(/[\u201C\u201D\u201E\u201F]/g, '"')
     .replace(/\r\n/g, "\n")
     .replace(/\r/g, "\n");
 }
@@ -69,6 +70,39 @@ export function splitDelimited(text) {
   return parts;
 }
 
+function hasUnquotedDelimiter(text) {
+  let quoted = false;
+  const value = String(text ?? "");
+  for (let i = 0; i < value.length; i++) {
+    const ch = value[i];
+    if (ch === '"') {
+      if (quoted && value[i + 1] === '"') {
+        i += 1;
+        continue;
+      }
+      quoted = !quoted;
+      continue;
+    }
+    if (!quoted && (ch === "," || ch === ";")) return true;
+  }
+  return false;
+}
+
+/** Split every line on commas and semicolons, keeping quoted commas together. */
+export function forceSplitDelimiters(raw) {
+  const text = normalizeRaw(raw);
+  const items = [];
+  for (const line of text.split("\n")) {
+    if (!line.trim()) continue;
+    const pieces = /[,;]/.test(line) ? splitDelimited(line) : [line];
+    for (const piece of pieces) {
+      const trimmed = stripWrappingQuotes(piece);
+      if (trimmed) items.push(trimmed);
+    }
+  }
+  return items.join("\n");
+}
+
 function stripWrappingQuotes(value) {
   const trimmed = String(value ?? "").trim();
   if (trimmed.length >= 2 && trimmed.startsWith('"') && trimmed.endsWith('"')) {
@@ -89,6 +123,7 @@ export function parseItems(raw, options = {}) {
   const mode = options.mode === "auto" ? "auto" : "lines";
   const text = normalizeRaw(raw);
   const lines = text.split("\n");
+  const warnings = [];
   let parts;
   if (mode === "auto" && linesUseDelimiters(text)) {
     parts = [];
@@ -99,12 +134,19 @@ export function parseItems(raw, options = {}) {
     }
   } else {
     parts = lines;
+    if (mode === "auto") {
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed && hasUnquotedDelimiter(trimmed)) {
+          warnings.push({ code: "comma-item", item: stripWrappingQuotes(trimmed) });
+        }
+      }
+    }
   }
 
   const items = [];
   const groups = [];
   const byKey = new Map();
-  const warnings = [];
 
   for (const part of parts) {
     const trimmed = stripWrappingQuotes(part);

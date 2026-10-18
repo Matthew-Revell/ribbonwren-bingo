@@ -157,8 +157,9 @@ function cardsLabel(total) {
 
 /**
  * Build the card PDF plus the call sheet.
- * audience "etsy" refuses web addresses, emails, and links, including in
- * the document info dictionary. Words such as Pro can be printed only when
+ * audience "etsy" refuses web addresses, emails, links, QR codes, and
+ * checkout names, including in the document info dictionary. Words such as
+ * Pro, and a false domain such as Join.us, can be printed only when
  * allowWording is set. The free footer stays off for that audience.
  */
 export async function renderPdf(options) {

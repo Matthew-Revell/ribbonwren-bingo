@@ -1,6 +1,6 @@
 import { siteConfig } from "./config.js";
 import { buildRecipe, recipeError } from "./core/recipe.js";
-import { parseItems } from "./core/items.js";
+import { forceSplitDelimiters, parseItems } from "./core/items.js";
 import { buildCards } from "./core/cards.js";
 import {
   licenseFilename,
@@ -38,6 +38,7 @@ let unlock = null;
 let seedDirty = false;
 let privateKey = null;
 let ledger = [];
+let wordingSet = "";
 let pendingBytes = null;
 let pendingName = "";
 let licenseBytes = null;
@@ -97,6 +98,8 @@ function showMessages(result) {
     box.append(line);
   }
   $("remove-duplicates").hidden = result.parsed.duplicates.length === 0;
+  const split = $("split-commas");
+  if (split) split.hidden = !result.parsed.warnings.some((warning) => warning.code === "comma-item");
 }
 
 function updatePreview() {
@@ -149,6 +152,10 @@ function updatePreview() {
   refreshWording(input, assessed);
 }
 
+function flaggedWords(parts) {
+  return parts.soft.map((hit) => hit.text).sort().join("\n");
+}
+
 function refreshWording(input, result) {
   const box = $("wording-warning");
   const row = $("wording-row");
@@ -160,9 +167,13 @@ function refreshWording(input, result) {
     box.textContent = etsyBlockedMessage(parts.hard);
     row.hidden = true;
     override.checked = false;
+    wordingSet = "";
     return;
   }
   if (parts.soft.length) {
+    const next = flaggedWords(parts);
+    if (next !== wordingSet) override.checked = false;
+    wordingSet = next;
     box.hidden = false;
     box.textContent = wordingWarning(parts.soft);
     row.hidden = false;
@@ -172,6 +183,7 @@ function refreshWording(input, result) {
   box.textContent = "";
   row.hidden = true;
   override.checked = false;
+  wordingSet = "";
 }
 
 function renderPictureList() {
@@ -507,6 +519,10 @@ async function boot() {
   $("load-recipe").addEventListener("change", onLoadRecipe);
   $("remove-duplicates").addEventListener("click", () => {
     $("words").value = parseItems($("words").value, { mode: "auto" }).items.join("\n");
+    updatePreview();
+  });
+  $("split-commas").addEventListener("click", () => {
+    $("words").value = forceSplitDelimiters($("words").value);
     updatePreview();
   });
   $("picture-input").addEventListener("change", async (event) => {

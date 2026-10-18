@@ -1,4 +1,8 @@
-/** Frozen shuffle. If this changes, bump ALGORITHM to rwb-v2. Recipes store the version. */
+/**
+ * Frozen shuffle id. Any future change to the hash, the seed folding, or
+ * the deal order must bump this to rwb-v2. Recipes store the id and will
+ * not reprint on a version they do not know.
+ */
 export const ALGORITHM = "rwb-v1";
 
 /** No 0/O or 1/I, so seeds stay readable when someone types them back in. */
@@ -88,15 +92,16 @@ export function settingsKey({ grid, freeSpace }) {
 }
 
 /**
- * Seeds are case-insensitive and ignore dashes and spaces.
- * kj4p-92, KJ4P-92, and KJ4P92 hash to the same shuffle.
+ * Seeds are case-insensitive and ignore spaces, hyphens, en dashes,
+ * em dashes, and underscores. kj4p-92, KJ4P—92, and KJ4P_92 hash the same.
  * The printed seed can still show the dashes the person typed.
+ * A seed with no letters or digits, such as "---", is empty after folding.
  */
 export function normalizeSeed(seed) {
   return String(seed ?? "")
     .normalize("NFKC")
     .toUpperCase()
-    .replace(/[\s-]+/g, "");
+    .replace(/[\s_\u2010-\u2015\u2212-]+/g, "");
 }
 
 export function cardKey({ seed, settings, listHash, index, retry = 0 }) {

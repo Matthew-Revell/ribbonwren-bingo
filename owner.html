@@ -53,10 +53,11 @@
             <div class="field">
               <label for="words">Words</label>
               <textarea id="words"></textarea>
-              <p class="field-msg">One item per line, or commas and semicolons when most lines use them. "milk, cookies" in quotes stays one item.</p>
+              <p class="field-msg">One item per line. Commas and semicolons split items when most lines use them. A line that still has commas stays one square until you split it. Straight or curly quotes keep a comma inside one item.</p>
               <p id="item-count" class="field-msg"></p>
               <p id="words-msg" class="field-msg error"></p>
               <button type="button" class="secondary" id="remove-duplicates" hidden>Remove duplicates</button>
+              <button type="button" class="secondary" id="split-commas" hidden>Split on commas</button>
             </div>
             <div id="picture-panel">
               <div class="field">
