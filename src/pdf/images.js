@@ -67,10 +67,16 @@ async function convertHeic(file) {
       /* Fall through to the library. */
     }
   }
+  // heic2any decodes in a blob worker and builds the decoder with new Function.
+  // The picture pages allow that with script-src 'unsafe-eval' and worker-src blob:.
   try {
     const mod = await import("heic2any");
     const heic2any = mod.default || mod;
-    const result = await heic2any({ blob: file, toType: "image/jpeg", quality: 0.85 });
+    const result = await Promise.race([
+      heic2any({ blob: file, toType: "image/jpeg", quality: 0.85 }),
+      new Promise((resolve) => setTimeout(() => resolve(null), 20000)),
+    ]);
+    if (!result) return null;
     return Array.isArray(result) ? result[0] : result;
   } catch {
     return null;

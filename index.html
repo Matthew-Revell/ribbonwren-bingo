@@ -3,6 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self' https://api.lemonsqueezy.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'">
     <title>Ribbonwren Bingo</title>
     <meta name="description" content="Make printable bingo cards from your own word list. The cards are built in your browser. Nothing is uploaded.">
     <meta property="og:title" content="Ribbonwren Bingo">
@@ -28,7 +29,7 @@
       <p class="tagline">Cozy all year, merry when it counts.</p>
       <h1>Ribbonwren Bingo</h1>
       <p class="lede">Paste a list, pick a grid, and download printable cards plus a call sheet. The PDF is made on this device. There is no account.</p>
-      <div id="pro-offer" class="pro-note"></div>
+      <div id="pro-offer" class="pro-note" role="region" aria-label="Pro"></div>
       <p id="licensed" class="status-pill" hidden></p>
       <div class="layout">
         <form id="game-form" class="panel">
@@ -139,15 +140,18 @@
           <p id="download-status" role="status"></p>
           <p id="open-pdf" hidden><a id="open-pdf-link" target="_blank" rel="noopener">Open the PDF</a> if the download did not start.</p>
           <fieldset>
-            <legend>Unlock code</legend>
+            <legend>Enter unlock code</legend>
             <div class="field">
-              <label for="unlock-code">Paste a code</label>
+              <label for="unlock-code">Paste a code or license key</label>
               <input id="unlock-code" type="text" autocomplete="off" spellcheck="false">
             </div>
             <div class="actions">
               <button type="button" class="secondary" id="unlock-button">Unlock</button>
+              <button type="button" class="quiet" id="deactivate-device" hidden>Deactivate this device</button>
               <button type="button" class="quiet" id="remove-unlock">Remove unlock from this browser</button>
+              <button type="button" class="quiet" id="remove-anyway" hidden>Remove anyway</button>
             </div>
+            <p id="unlock-key-mask" class="field-msg" hidden></p>
             <p id="unlock-msg" class="field-msg error"></p>
           </fieldset>
         </form>

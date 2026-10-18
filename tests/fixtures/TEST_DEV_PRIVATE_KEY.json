@@ -8,6 +8,6 @@
   "y": "aMeBnLYbVNw3hR_x31GN-PqJboqGL6hBUE4gQFel4no",
   "crv": "P-256",
   "d": "v90AxDh1KCM_aEMJEA7DRh7uik7fv4dJ378xYsbM_GM",
-  "_warning": "TEST/DEV KEY ONLY. NOT FOR REAL SALES. Anyone with this file can forge unlock codes. Matthew must generate a production key with tools/make-keys.mjs and replace the public key before launch.",
+  "_warning": "TEST/DEV KEY ONLY. NOT FOR REAL SALES. Anyone with this file can forge unlock codes for tests. It does not match the production public key in src/unlock/public-key.js.",
   "alg": "ES256"
 }
